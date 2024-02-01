@@ -36,10 +36,14 @@ import net.minecraft.world.phys.BlockHitResult;
 import org.spongepowered.asm.mixin.Final;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
+import org.spongepowered.asm.mixin.Unique;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
+
+import java.text.SimpleDateFormat;
+import java.util.Date;
 
 @Mixin(value = ServerPlayerGameMode.class, priority = 999)
 public class ServerPlayerGameModeMixin {
@@ -52,6 +56,9 @@ public class ServerPlayerGameModeMixin {
 
     @Shadow
     private int gameTicks;
+
+    @Unique
+    private SimpleDateFormat formatter = new SimpleDateFormat("dd-MM-yyyy hh:mm:ss");
 
     @Inject(method = "destroyAndAck", at = @At("HEAD"), cancellable = true)
     private void diamondchestshop_destroyAndAckMixin(BlockPos blockPos, int i, String string, CallbackInfo ci) {
@@ -207,6 +214,14 @@ public class ServerPlayerGameModeMixin {
                 dm.setBalance(owner, dm.getBalanceFromUUID(owner) + money);
             }
 
+            DiamondChestShop.getDatabaseManager().logTrade(
+                    ((BaseContainerBlockEntityInterface) shop).diamondchestshop_getId(),
+                    quantity1,
+                    money,
+                    player.getStringUUID(),
+                    ((SignBlockEntityInterface) be).diamondchestshop_getAdminShop() ? "admin" : owner,
+                    "sell"
+            );
             player.displayClientMessage(Component.literal("Bought " + quantity1 + " " + sellItem.getDescription().getString() + " for $" + money), true);
         } catch (NumberFormatException | CommandSyntaxException | NullPointerException ignored) {}
     }
@@ -310,6 +325,14 @@ public class ServerPlayerGameModeMixin {
                 dm.setBalance(owner, dm.getBalanceFromUUID(owner) - money);
             }
             dm.setBalance(player.getStringUUID(), dm.getBalanceFromUUID(player.getStringUUID()) + money);
+            DiamondChestShop.getDatabaseManager().logTrade(
+                    ((BaseContainerBlockEntityInterface) shop).diamondchestshop_getId(),
+                    quantity,
+                    money,
+                    ((SignBlockEntityInterface) be).diamondchestshop_getAdminShop() ? "admin" : owner,
+                    player.getStringUUID(),
+                    "buy"
+            );
             player.displayClientMessage(Component.literal("Sold " + quantity + " " + buyItem.getDescription().getString() + " for $" + money), true);
         } catch (NumberFormatException | CommandSyntaxException | NullPointerException ignored) {}
     }

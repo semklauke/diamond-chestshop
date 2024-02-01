@@ -77,7 +77,7 @@ public abstract class BaseContainerBlockEntityMixin extends BlockEntity implemen
         if (nbt.getString("diamondchestshop_NBT").length() > 1) {
             diamondchestshop_item = nbt.getString("diamondchestshop_ShopItem");
             diamondchestshop_nbt = nbt.getString("diamondchestshop_NBT");
-            diamondchestshop_id = DiamondChestShop.getDatabaseManager().addShop(diamondchestshop_item, diamondchestshop_nbt);
+            diamondchestshop_id = DiamondChestShop.getDatabaseManager().addShop(diamondchestshop_item, diamondchestshop_nbt, this.getBlockPos().getCenter());
         } else {
             if (nbt.getInt("diamondchestshop_Id") > 0) {
                 diamondchestshop_id = nbt.getInt("diamondchestshop_Id");

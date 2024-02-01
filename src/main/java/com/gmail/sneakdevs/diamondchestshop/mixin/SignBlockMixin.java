@@ -58,7 +58,8 @@ public abstract class SignBlockMixin extends BaseEntityBlock {
             }
             if (world.getBlockEntity(hangingPos) instanceof BaseContainerBlockEntity shop) {
                 ((BaseContainerBlockEntityInterface)shop).diamondchestshop_setShop(false);
-                DiamondChestShop.getDatabaseManager().removeShop(((BaseContainerBlockEntityInterface)shop).diamondchestshop_getId());
+                DiamondChestShop.getDatabaseManager().removeShop(((BaseContainerBlockEntityInterface) shop).diamondchestshop_getId());
+                DiamondChestShop.hologramManager.removeShopHolo(((BaseContainerBlockEntityInterface) shop).diamondchestshop_getId());
                 shop.setChanged();
             }
         }
@@ -129,8 +130,11 @@ public abstract class SignBlockMixin extends BaseEntityBlock {
                 return;
             }
 
+            try {
                 int quantity = Integer.parseInt(DiamondChestShop.signTextToReadable(signEntity.getFrontText().getMessage(1,true).getString()));
                 int money = Integer.parseInt(DiamondChestShop.signTextToReadable(signEntity.getFrontText().getMessage(2,true).getString()));
+                int shopId;
+
                 if (quantity >= 1) {
                     if (money >= 0) {
                         iSign.diamondchestshop_setShop(true);
@@ -139,11 +143,13 @@ public abstract class SignBlockMixin extends BaseEntityBlock {
                         iShop.diamondchestshop_setItem(itemStr);
                         try {
                             String tag = player.getOffhandItem().getTag().getAsString();
+                            shopId = DiamondChestShop.getDatabaseManager().addShop(itemStr, tag, shop.getBlockPos().getCenter());
                             iShop.diamondchestshop_setTag(tag);
-                            iShop.diamondchestshop_setId(DiamondChestShop.getDatabaseManager().addShop(itemStr, tag));
+                            iShop.diamondchestshop_setId(shopId);
                         } catch (NullPointerException ignored) {
+                            shopId = DiamondChestShop.getDatabaseManager().addShop(itemStr, "{}", shop.getBlockPos().getCenter());
                             iShop.diamondchestshop_setTag("{}");
-                            iShop.diamondchestshop_setId(DiamondChestShop.getDatabaseManager().addShop(itemStr, "{}"));
+                            iShop.diamondchestshop_setId(shopId);
                         }
                         signEntity.setWaxed(true);
                         signEntity.setChanged();
@@ -155,7 +161,8 @@ public abstract class SignBlockMixin extends BaseEntityBlock {
                         itemEntity.setNeverPickUp();
                         itemEntity.setInvulnerable(true);
                         itemEntity.setNoGravity(true);
-                        itemEntity.setPos(new Vec3(hangingPos.getX() + 0.5, hangingPos.getY() + 1.05, hangingPos.getZ() + 0.5));
+                        //itemEntity.setPos(new Vec3(hangingPos.getX() + 0.5, hangingPos.getY() + 1.05, hangingPos.getZ() + 0.5)); -> disabled because any player can pick up created entity
+                        DiamondChestShop.hologramManager.createShopHolo(player, shopId, hangingPos);
                         ((ItemEntityInterface) itemEntity).diamondchestshop_setShop(true);
                         world.addFreshEntity(itemEntity);
                         ((SignBlockEntityInterface) signEntity).diamondchestshop_setItemEntity(itemEntity.getUUID());
@@ -175,6 +182,10 @@ public abstract class SignBlockMixin extends BaseEntityBlock {
                     player.displayClientMessage(Component.literal("Positive quantity required"), true);
                 }
                 cir.setReturnValue(InteractionResult.PASS);
+            } catch (NumberFormatException ignored) {
+                player.displayClientMessage(Component.literal("The second and third lines must be numbers (quantity then money)"), true);
+                cir.setReturnValue(InteractionResult.PASS);
+            }
         }
     }
 }
