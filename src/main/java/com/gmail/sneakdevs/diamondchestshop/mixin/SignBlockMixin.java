@@ -1,8 +1,8 @@
 package com.gmail.sneakdevs.diamondchestshop.mixin;
 
 import com.gmail.sneakdevs.diamondchestshop.DiamondChestShop;
+import com.gmail.sneakdevs.diamondchestshop.DiamondChestShopUtil;
 import com.gmail.sneakdevs.diamondchestshop.interfaces.BaseContainerBlockEntityInterface;
-import com.gmail.sneakdevs.diamondchestshop.interfaces.ItemEntityInterface;
 import com.gmail.sneakdevs.diamondchestshop.interfaces.SignBlockEntityInterface;
 import com.gmail.sneakdevs.diamondeconomy.config.DiamondEconomyConfig;
 import net.minecraft.core.BlockPos;
@@ -12,11 +12,8 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResult;
-import net.minecraft.world.entity.EntityType;
-import net.minecraft.world.entity.item.ItemEntity;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.Item;
-import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.*;
@@ -25,16 +22,14 @@ import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.entity.RandomizableContainerBlockEntity;
 import net.minecraft.world.level.block.entity.SignBlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
-import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.BlockHitResult;
-import net.minecraft.world.phys.Vec3;
 import org.jetbrains.annotations.NotNull;
 import org.spongepowered.asm.mixin.Mixin;
+import org.spongepowered.asm.mixin.Unique;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
-import java.util.List;
 import java.util.Objects;
 
 @Mixin(value = SignBlock.class, priority = 999)
@@ -47,145 +42,136 @@ public abstract class SignBlockMixin extends BaseEntityBlock {
     //remove shop from chest
     @Override
     public void playerWillDestroy(Level world, @NotNull BlockPos pos, @NotNull BlockState state, @NotNull Player player) {
-        if (!world.isClientSide() && ((SignBlockEntityInterface) Objects.requireNonNull(world.getBlockEntity(pos))).diamondchestshop_getShop()) {
-            BlockPos hangingPos = pos.offset(state.getValue(HorizontalDirectionalBlock.FACING).getOpposite().getStepX(), state.getValue(HorizontalDirectionalBlock.FACING).getOpposite().getStepY(), state.getValue(HorizontalDirectionalBlock.FACING).getOpposite().getStepZ());
-            List<ItemEntity> entities = world.getEntitiesOfClass(ItemEntity.class, new AABB(new BlockPos(hangingPos.getX() - 2, hangingPos.getY() - 2, hangingPos.getZ() - 2), new BlockPos(hangingPos.getX() + 2, hangingPos.getY() + 2, hangingPos.getZ() + 2)));
-            while (entities.size() > 0) {
-                if (entities.get(0).getUUID().equals(((SignBlockEntityInterface) world.getBlockEntity(pos)).diamondchestshop_getItemEntity())) {
-                    entities.get(0).kill();
-                }
-                entities.remove(0);
-            }
-            if (world.getBlockEntity(hangingPos) instanceof BaseContainerBlockEntity shop) {
-                ((BaseContainerBlockEntityInterface)shop).diamondchestshop_setShop(false);
-                DiamondChestShop.getDatabaseManager().removeShop(((BaseContainerBlockEntityInterface) shop).diamondchestshop_getId());
-                DiamondChestShop.hologramManager.removeShopHolo(((BaseContainerBlockEntityInterface) shop).diamondchestshop_getId());
-                shop.setChanged();
-            }
-        }
+        DiamondChestShopUtil.diamondchestshop_destroyShop(world, pos, state);
+        super.playerWillDestroy(world, pos, state, player);
     }
 
     @Inject(method = "use", at = @At("HEAD"), cancellable = true)
     private void diamondchestshop_useMixin(BlockState state, Level world, BlockPos pos, Player player, InteractionHand hand, BlockHitResult hit, CallbackInfoReturnable<InteractionResult> cir) {
-        if (!world.isClientSide()) {
-            ItemStack itemStack = player.getItemInHand(hand);
-            Item item = itemStack.getItem();
-            SignBlockEntity signEntity = (SignBlockEntity)world.getBlockEntity(pos);
-            if (signEntity == null) return;
-            SignBlockEntityInterface iSign = (SignBlockEntityInterface) signEntity;
+        // only server side
+        if (world.isClientSide()) return;
 
-            if (iSign.diamondchestshop_getShop()) {
-                //admin shops
-                if (item.equals(Items.COMMAND_BLOCK)) {
-                    iSign.diamondchestshop_setAdminShop(!iSign.diamondchestshop_getAdminShop());
-                    signEntity.setChanged();
-                    player.displayClientMessage(Component.literal((iSign.diamondchestshop_getAdminShop()) ? "Created admin shop" : "Removed admin shop"), true);
-                    cir.setReturnValue(InteractionResult.PASS);
-                    return;
-                }
-            }
+        // get Item and Sign entity
+        Item handItem = player.getItemInHand(hand).getItem();
+        SignBlockEntity signEntity = (SignBlockEntity) world.getBlockEntity(pos);
+        if (signEntity == null) return;
+        SignBlockEntityInterface iSign = (SignBlockEntityInterface) signEntity;
 
-            //create the chest shop
-            if (!item.equals(BuiltInRegistries.ITEM.get(ResourceLocation.tryParse(DiamondEconomyConfig.getInstance().currencies[0])))) {
-                return;
-            }
+        // create admin shop if hand item is command block
+        if (iSign.diamondchestshop_getIsShop() && handItem.equals(Items.COMMAND_BLOCK)) {
+            iSign.diamondchestshop_setIsAdminShop(!iSign.diamondchestshop_getIsAdminShop());
+            signEntity.setChanged();
+            player.displayClientMessage(Component.literal((iSign.diamondchestshop_getIsAdminShop()) ? "Created admin shop" : "Removed admin shop"), true);
+            cir.setReturnValue(InteractionResult.PASS);
+            return;
+        }
 
-            if (iSign.diamondchestshop_getShop()) {
-                player.displayClientMessage(Component.literal("This is already a shop"), true);
-                cir.setReturnValue(InteractionResult.PASS);
-                return;
-            }
+        // hand item must be a currency item (first in the list)
+        if (!handItem.equals(BuiltInRegistries.ITEM.get(ResourceLocation.tryParse(DiamondEconomyConfig.getInstance().currencies[0])))) {
+            return;
+        }
 
-            BlockPos hangingPos = pos.offset(state.getValue(HorizontalDirectionalBlock.FACING).getOpposite().getStepX(), state.getValue(HorizontalDirectionalBlock.FACING).getOpposite().getStepY(), state.getValue(HorizontalDirectionalBlock.FACING).getOpposite().getStepZ());
-            BlockEntity chestEntity = world.getBlockEntity(hangingPos);
-            if (!(chestEntity instanceof RandomizableContainerBlockEntity shop)) {
-                player.displayClientMessage(Component.literal("Sign must be on a valid container"), true);
-                cir.setReturnValue(InteractionResult.PASS);
-                return;
-            }
+        /* From here on this is a shop interaction with the sign.
+         * Hence, we always want to cancel the tail of the sign use method */
 
-            BaseContainerBlockEntityInterface iShop = ((BaseContainerBlockEntityInterface) shop);
+        cir.setReturnValue(InteractionResult.PASS);
+        // if this shop already exists, exit
+        if (iSign.diamondchestshop_getIsShop()) {
+            player.displayClientMessage(Component.literal("This is already a shop"), true);
+            return;
+        }
 
-            if (!iSign.diamondchestshop_getOwner().equals(player.getStringUUID()) || !iShop.diamondchestshop_getOwner().equals(player.getStringUUID())) {
-                player.displayClientMessage(Component.literal("You must have placed down the sign and chest"), true);
-                cir.setReturnValue(InteractionResult.PASS);
-                return;
-            }
+        // get container entity
+        Direction oppositeBlockDir = state.getValue(HorizontalDirectionalBlock.FACING).getOpposite();
+        BlockPos hangingPos = pos.offset(oppositeBlockDir.getStepX(), oppositeBlockDir.getStepY(), oppositeBlockDir.getStepZ());
+        BlockEntity chestEntity = world.getBlockEntity(hangingPos);
+        if (!(chestEntity instanceof RandomizableContainerBlockEntity shop)) {
+            // sign is not attached to a container
+            player.displayClientMessage(Component.literal("Sign must be on a valid container"), true);
+            return;
+        }
 
-            if (player.getOffhandItem().getItem().equals(Items.AIR)) {
-                player.displayClientMessage(Component.literal("The sell item must be in your offhand"), true);
-                cir.setReturnValue(InteractionResult.PASS);
-                return;
-            }
+        BaseContainerBlockEntityInterface iShop = ((BaseContainerBlockEntityInterface) shop);
+        // TODO: check here if the shop is really a shop. Currently not done since the variables on the chest aren't getting set correctly
 
-            if (iShop.diamondchestshop_getShop()) {
-                player.displayClientMessage(Component.literal("That chest already is a shop"), true);
-                cir.setReturnValue(InteractionResult.PASS);
-                return;
-            }
+        // sign and chest must be placed down by the current player
+        // TODO: we skip the chest check here, since it is not a shop chest before the shop is created (|| (!iShop.diamondchestshop_getOwner().equals(player.getStringUUID()))
+        if (!iSign.diamondchestshop_getOwner().equals(player.getStringUUID())) {
+            player.displayClientMessage(Component.literal("You can only activated shops when you place down the sign and chest yourself"), true);
+            return;
+        }
 
-            if (!signEntity.getFrontText().getMessage(0,true).getString().toLowerCase().contains("sell") && !signEntity.getFrontText().getMessage(0,true).getString().toLowerCase().contains("buy")) {
-                player.displayClientMessage(Component.literal("The first line must be either \"Buy\" or \"Sell\""), true);
-                cir.setReturnValue(InteractionResult.PASS);
-                return;
-            }
+        // offhand must have an item
+        if (player.getOffhandItem().isEmpty()) {
+            player.displayClientMessage(Component.literal("Put the item you want to sell/buy in your offhand"), true);
+            return;
+        }
 
-            try {
-                int quantity = Integer.parseInt(DiamondChestShop.signTextToReadable(signEntity.getFrontText().getMessage(1,true).getString()));
-                int money = Integer.parseInt(DiamondChestShop.signTextToReadable(signEntity.getFrontText().getMessage(2,true).getString()));
-                int shopId;
+        // don't create a shop with the same chest twice
+        if (iShop.diamondchestshop_getId() != -1) {
+            player.displayClientMessage(Component.literal("That chest already is a shop"), true);
+            return;
+        }
 
-                if (quantity >= 1) {
-                    if (money >= 0) {
-                        iSign.diamondchestshop_setShop(true);
-                        iShop.diamondchestshop_setShop(true);
-                        String itemStr = BuiltInRegistries.ITEM.getKey(player.getOffhandItem().getItem()).toString();
-                        iShop.diamondchestshop_setItem(itemStr);
-                        try {
-                            String tag = player.getOffhandItem().getTag().getAsString();
-                            shopId = DiamondChestShop.getDatabaseManager().addShop(itemStr, tag, shop.getBlockPos().getCenter());
-                            iShop.diamondchestshop_setTag(tag);
-                            iShop.diamondchestshop_setId(shopId);
-                        } catch (NullPointerException ignored) {
-                            shopId = DiamondChestShop.getDatabaseManager().addShop(itemStr, "{}", shop.getBlockPos().getCenter());
-                            iShop.diamondchestshop_setTag("{}");
-                            iShop.diamondchestshop_setId(shopId);
-                        }
-                        signEntity.setWaxed(true);
-                        signEntity.setChanged();
-                        shop.setChanged();
+        // Parse first line, exit if not sell or buy keyword
+        if (iSign.diamondchestshop_getShopType() == SignBlockEntityInterface.ShopType.NONE) {
+            // TODO use keywords from config
+            player.displayClientMessage(Component.literal("The first line must be either \"Buy\" or \"Sell\""), true);
+            return;
+        }
 
-                        ItemEntity itemEntity = EntityType.ITEM.create(world);
-                        itemEntity.setItem(new ItemStack(player.getOffhandItem().getItem(), Math.min(quantity, player.getOffhandItem().getItem().getMaxStackSize())));
-                        itemEntity.setUnlimitedLifetime();
-                        itemEntity.setNeverPickUp();
-                        itemEntity.setInvulnerable(true);
-                        itemEntity.setNoGravity(true);
-                        //itemEntity.setPos(new Vec3(hangingPos.getX() + 0.5, hangingPos.getY() + 1.05, hangingPos.getZ() + 0.5)); -> disabled because any player can pick up created entity
-                        DiamondChestShop.hologramManager.createShopHolo(player, shopId, hangingPos);
-                        ((ItemEntityInterface) itemEntity).diamondchestshop_setShop(true);
-                        world.addFreshEntity(itemEntity);
-                        ((SignBlockEntityInterface) signEntity).diamondchestshop_setItemEntity(itemEntity.getUUID());
-                        BlockState shopBlock = world.getBlockState(hangingPos);
-                        if (shopBlock.getBlock().equals(Blocks.CHEST) && !ChestBlock.getBlockType(shopBlock).equals(DoubleBlockCombiner.BlockType.SINGLE)) {
-                            Direction dir = ChestBlock.getConnectedDirection(shopBlock);
-                            BlockEntity be2 = world.getBlockEntity(new BlockPos(shop.getBlockPos().getX() + dir.getStepX(), shop.getBlockPos().getY(), shop.getBlockPos().getZ() + dir.getStepZ()));
-                            if (be2 != null) {
-                                ((BaseContainerBlockEntityInterface) be2).diamondchestshop_setShop(true);
-                            }
-                        }
-                        player.displayClientMessage(Component.literal("Created shop with " + quantity + " " + Component.translatable(player.getOffhandItem().getItem().getDescriptionId()).getString() + (signEntity.getFrontText().getMessage(0,true).getString().toLowerCase().contains("sell") ? (((signEntity.getFrontText().getMessage(0,true).getString().toLowerCase().contains("buy")) ? " sold and bought" : " sold")) : " bought") + " for $" + money), true);
-                    } else {
-                        player.displayClientMessage(Component.literal("Negative prices are not allowed"), true);
-                    }
-                } else {
-                    player.displayClientMessage(Component.literal("Positive quantity required"), true);
-                }
-                cir.setReturnValue(InteractionResult.PASS);
-            } catch (NumberFormatException ignored) {
-                player.displayClientMessage(Component.literal("The second and third lines must be numbers (quantity then money)"), true);
-                cir.setReturnValue(InteractionResult.PASS);
+        // parse line 2,3 (quantity, money) to integers
+        int quantity = iSign.diamondchestshop_getQuantity();
+        int price = iSign.diamondchestshop_getPrice();
+        // quantity must be at least 1
+        if (quantity < 1) {
+            player.displayClientMessage(Component.literal("Line 2 (quantity) must be a positive number!"), true);
+            return;
+        }
+        // money must be at least 0
+        if (price < 0) {
+            player.displayClientMessage(Component.literal("Line 3 (price) must be a non negative number!"), true);
+            return;
+        }
+
+        // save nbt tags for the item in the offhand
+        String nbt;
+        try { nbt = Objects.requireNonNull(player.getOffhandItem().getTag()).getAsString(); }
+        catch (NullPointerException ignore) { nbt = "{}"; }
+
+        // start creating shop
+        String itemStr = BuiltInRegistries.ITEM.getKey(player.getOffhandItem().getItem()).toString();
+        String owner = player.getStringUUID();
+        int shopId = DiamondChestShop.getDatabaseManager().addShop(itemStr, nbt, hangingPos.getCenter());
+        iSign.diamondchestshop_setShop(shopId, owner, itemStr, nbt, false);
+        iShop.diamondchestshop_setId(shopId);
+        iShop.diamondchestshop_setOwner(owner);
+
+        // saves sing entity
+        signEntity.setWaxed(true);
+        signEntity.setChanged();
+        shop.setChanged();
+
+        // if the sign is attached to a double chest, add data to other chest as well
+        BlockState shopBlock = world.getBlockState(hangingPos);
+        if (shopBlock.getBlock().equals(Blocks.CHEST) && !ChestBlock.getBlockType(shopBlock).equals(DoubleBlockCombiner.BlockType.SINGLE)) {
+            Direction dir = ChestBlock.getConnectedDirection(shopBlock);
+            BlockEntity be2 = world.getBlockEntity(new BlockPos(shop.getBlockPos().getX() + dir.getStepX(), shop.getBlockPos().getY(), shop.getBlockPos().getZ() + dir.getStepZ()));
+            if (be2 != null) {
+                ((BaseContainerBlockEntityInterface) be2).diamondchestshop_setId(shopId);
+                ((BaseContainerBlockEntityInterface) be2).diamondchestshop_setOwner(owner);
             }
         }
+        // oh my what a TODO
+        player.displayClientMessage(
+                Component.literal("Created shop with " + quantity + " " +
+                        Component.translatable(player.getOffhandItem().getItem().getDescriptionId()).getString() +
+                        (signEntity.getFrontText().getMessage(0,true).getString().toLowerCase().contains("sell") ?
+                                (((signEntity.getFrontText().getMessage(0,true).getString().toLowerCase().contains("buy")) ?
+                                        " sold and bought" :
+                                        " sold"))
+                                : " bought") +
+                        " for $" + price),
+                true);
     }
 }

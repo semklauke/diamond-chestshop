@@ -4,18 +4,24 @@ import com.gmail.sneakdevs.diamondchestshop.config.DiamondChestShopConfig;
 import com.gmail.sneakdevs.diamondchestshop.sql.ChestshopDatabaseManager;
 import com.gmail.sneakdevs.diamondchestshop.sql.ChestshopSQLiteDatabaseManager;
 import com.gmail.sneakdevs.diamondeconomy.DiamondUtils;
-import com.mojang.brigadier.exceptions.CommandSyntaxException;
 import me.shedaniel.autoconfig.AutoConfig;
 import me.shedaniel.autoconfig.serializer.JanksonConfigSerializer;
 import net.fabricmc.api.ModInitializer;
 import net.fabricmc.fabric.api.command.v2.CommandRegistrationCallback;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents;
-import net.minecraft.nbt.CompoundTag;
-import net.minecraft.nbt.NbtUtils;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public class DiamondChestShop implements ModInitializer {
-    public static final String MODID = "diamondschestshop";
-    public static Hologram hologramManager;
+    public static final String MODID = "diamondchestshop";
+    public static final Logger LOGGER = LoggerFactory.getLogger(MODID);
+    private static ShopDisplayManager shopDisplayManager;
+    public static ShopDisplayManager getShopDisplayManager() {
+        if (shopDisplayManager == null) {
+            shopDisplayManager = new ShopDisplayManager(false);
+        }
+        return shopDisplayManager;
+    }
 
     public static ChestshopDatabaseManager getDatabaseManager() {
         return new ChestshopSQLiteDatabaseManager();
@@ -25,7 +31,10 @@ public class DiamondChestShop implements ModInitializer {
     public void onInitialize() {
         CommandRegistrationCallback.EVENT.register((dispatcher, registryAccess, environment) -> ChestshopCommand.register(dispatcher));
         AutoConfig.register(DiamondChestShopConfig.class, JanksonConfigSerializer::new);
-        ServerLifecycleEvents.SERVER_STARTED.register((server) -> hologramManager = new Hologram(server));
+        ServerLifecycleEvents.SERVER_STARTED.register((server) -> {
+            DiamondChestShop.getDatabaseManager().execute("UPDATE SQLITE_SEQUENCE SET seq=10 WHERE name='chestshop' AND seq <= 1 ;");
+            shopDisplayManager = new ShopDisplayManager(true);
+        });
 
         DiamondUtils.registerTable("""
             CREATE TABLE IF NOT EXISTS chestshop (
@@ -50,15 +59,5 @@ public class DiamondChestShop implements ModInitializer {
                 FOREIGN KEY(shopId) REFERENCES chestshop(id)
             );
         """);
-    }
-
-    public static String signTextToReadable(String text) {
-        return text.replaceAll("[\\D]", "").toLowerCase();
-    }
-
-    public static CompoundTag getNbtData(String text) throws CommandSyntaxException {
-        CompoundTag nbt = NbtUtils.snbtToStructure(text);
-        if (!text.contains("palette")) nbt.remove("palette");
-        return nbt;
     }
 }

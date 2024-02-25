@@ -30,7 +30,7 @@ public class ExplosionMixin {
         if (DiamondChestShopConfig.getInstance().shopProtectExplosion) {
             this.toBlow.removeIf((b) -> {
                 BlockEntity be = level.getBlockEntity(b);
-                return ((be instanceof SignBlockEntity && ((SignBlockEntityInterface) be).diamondchestshop_getShop()) || (be instanceof BaseContainerBlockEntity && ((BaseContainerBlockEntityInterface) be).diamondchestshop_getShop()));
+                return ((be instanceof SignBlockEntity && ((SignBlockEntityInterface) be).diamondchestshop_getIsShop()) || (be instanceof BaseContainerBlockEntity && ((BaseContainerBlockEntityInterface) be).diamondchestshop_getIsShop()));
             });
         }
     }

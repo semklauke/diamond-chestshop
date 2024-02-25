@@ -14,15 +14,18 @@ import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
+import java.util.Objects;
+
 @Mixin(BlockItem.class)
 public class BlockItemMixin {
     @Inject(method = "updateCustomBlockEntityTag(Lnet/minecraft/world/level/Level;Lnet/minecraft/world/entity/player/Player;Lnet/minecraft/core/BlockPos;Lnet/minecraft/world/item/ItemStack;)Z", at = @At("HEAD"))
     private static void diamondchestshop_updateCustomBlockEntityTagMixin(Level world, Player player, BlockPos pos, ItemStack stack, CallbackInfoReturnable<Boolean> cir) {
         if (world.getServer() != null && player != null) {
-            if (world.getBlockEntity(pos) instanceof BaseContainerBlockEntity) {
-                ((BaseContainerBlockEntityInterface) world.getBlockEntity(pos)).diamondchestshop_setOwner(player.getStringUUID());
-            } else if (world.getBlockEntity(pos) instanceof SignBlockEntity) {
-                ((SignBlockEntityInterface) world.getBlockEntity(pos)).diamondchestshop_setOwner(player.getStringUUID());
+            var be = world.getBlockEntity(pos);
+            if (be instanceof BaseContainerBlockEntity) {
+                ((BaseContainerBlockEntityInterface) be).diamondchestshop_setOwner(player.getStringUUID());
+            } else if (be instanceof SignBlockEntity) {
+                ((SignBlockEntityInterface) be).diamondchestshop_setOwner(player.getStringUUID());
             }
         }
     }

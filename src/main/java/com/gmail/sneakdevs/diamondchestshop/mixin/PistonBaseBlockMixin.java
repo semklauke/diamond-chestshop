@@ -20,7 +20,7 @@ public class PistonBaseBlockMixin {
     private static void diamondchestshop_isPushableMixin(BlockState blockState, Level level, BlockPos blockPos, Direction direction, boolean bl, Direction direction2, CallbackInfoReturnable<Boolean> cir) {
         if (DiamondChestShopConfig.getInstance().shopProtectPiston) {
             BlockEntity be = level.getBlockEntity(blockPos);
-            if (be instanceof SignBlockEntity && ((SignBlockEntityInterface) be).diamondchestshop_getShop()) {
+            if (be instanceof SignBlockEntity && ((SignBlockEntityInterface) be).diamondchestshop_getIsShop()) {
                 cir.setReturnValue(false);
             }
         }

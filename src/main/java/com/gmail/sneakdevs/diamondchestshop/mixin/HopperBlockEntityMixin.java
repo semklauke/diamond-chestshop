@@ -2,7 +2,6 @@ package com.gmail.sneakdevs.diamondchestshop.mixin;
 
 import com.gmail.sneakdevs.diamondchestshop.config.DiamondChestShopConfig;
 import com.gmail.sneakdevs.diamondchestshop.interfaces.BaseContainerBlockEntityInterface;
-import com.gmail.sneakdevs.diamondchestshop.interfaces.ItemEntityInterface;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.Container;
 import net.minecraft.world.entity.item.ItemEntity;
@@ -21,17 +20,16 @@ import java.util.function.BooleanSupplier;
 
 @Mixin(value = HopperBlockEntity.class, priority = 100)
 public class HopperBlockEntityMixin {
-    @Inject(method = "addItem(Lnet/minecraft/world/Container;Lnet/minecraft/world/entity/item/ItemEntity;)Z", at = @At("HEAD"), cancellable = true)
-    private static void diamondchestshop_addItemMixin(Container container, ItemEntity itemEntity, CallbackInfoReturnable<Boolean> cir) {
-        if (((ItemEntityInterface)itemEntity).diamondchestshop_getShop()) {
-            cir.setReturnValue(false);
-        }
-    }
-
     @Inject(method = "tryMoveItems", at = @At("HEAD"), cancellable = true)
     private static void diamondchestshop_tryMoveItemsMixin(Level level, BlockPos blockPos, BlockState blockState, HopperBlockEntity hopperBlockEntity, BooleanSupplier booleanSupplier, CallbackInfoReturnable<Boolean> cir) {
-        if (DiamondChestShopConfig.getInstance().shopProtectHopper && level.getBlockEntity(blockPos.above()) instanceof BaseContainerBlockEntity && ((BaseContainerBlockEntityInterface)level.getBlockEntity(blockPos.above())).diamondchestshop_getShop() && !((BaseContainerBlockEntityInterface)level.getBlockEntity(blockPos.above())).diamondchestshop_getOwner().equals(((BaseContainerBlockEntityInterface)hopperBlockEntity).diamondchestshop_getOwner())) {
-            cir.setReturnValue(false);
+        if (!DiamondChestShopConfig.getInstance().shopProtectHopper)
+            return;
+        if (level.getBlockEntity(blockPos.above()) instanceof BaseContainerBlockEntity shop) {
+            BaseContainerBlockEntityInterface iShop = (BaseContainerBlockEntityInterface) shop;
+            if (iShop.diamondchestshop_getIsShop() &&
+                    !iShop.diamondchestshop_getOwner().equals(((BaseContainerBlockEntityInterface)hopperBlockEntity).diamondchestshop_getOwner())) {
+                cir.setReturnValue(false);
+            }
         }
     }
 
@@ -39,7 +37,7 @@ public class HopperBlockEntityMixin {
     private static void diamondchestshop_suckInItemsMixin(Level level, Hopper hopper, CallbackInfoReturnable<Boolean> cir) {
         if (DiamondChestShopConfig.getInstance().shopProtectHopperMinecart && hopper instanceof MinecartHopper) {
             Container container = HopperBlockEntity.getContainerAt(level, new BlockPos((int)hopper.getLevelX(), (int)hopper.getLevelY() + 1, (int)hopper.getLevelZ()));
-            if (container instanceof BaseContainerBlockEntity && ((BaseContainerBlockEntityInterface)container).diamondchestshop_getShop()) {
+            if (container instanceof BaseContainerBlockEntity && ((BaseContainerBlockEntityInterface)container).diamondchestshop_getIsShop()) {
                 cir.setReturnValue(false);
             }
         }

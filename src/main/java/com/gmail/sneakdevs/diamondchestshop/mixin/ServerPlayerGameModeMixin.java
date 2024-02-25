@@ -1,16 +1,15 @@
 package com.gmail.sneakdevs.diamondchestshop.mixin;
 
 import com.gmail.sneakdevs.diamondchestshop.DiamondChestShop;
+import com.gmail.sneakdevs.diamondchestshop.DiamondChestShopUtil;
 import com.gmail.sneakdevs.diamondchestshop.config.DiamondChestShopConfig;
 import com.gmail.sneakdevs.diamondchestshop.interfaces.BaseContainerBlockEntityInterface;
 import com.gmail.sneakdevs.diamondchestshop.interfaces.SignBlockEntityInterface;
 import com.gmail.sneakdevs.diamondeconomy.DiamondUtils;
 import com.gmail.sneakdevs.diamondeconomy.sql.DatabaseManager;
-import com.mojang.brigadier.exceptions.CommandSyntaxException;
 import net.minecraft.core.BlockPos;
-import net.minecraft.core.Registry;
+import net.minecraft.core.Direction;
 import net.minecraft.core.registries.BuiltInRegistries;
-import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.protocol.Packet;
 import net.minecraft.network.protocol.game.ClientGamePacketListener;
@@ -22,7 +21,6 @@ import net.minecraft.server.level.ServerPlayerGameMode;
 import net.minecraft.world.Container;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResult;
-import net.minecraft.world.entity.item.ItemEntity;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
@@ -42,9 +40,6 @@ import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
-import java.text.SimpleDateFormat;
-import java.util.Date;
-
 @Mixin(value = ServerPlayerGameMode.class, priority = 999)
 public class ServerPlayerGameModeMixin {
     @Shadow
@@ -57,9 +52,6 @@ public class ServerPlayerGameModeMixin {
     @Shadow
     private int gameTicks;
 
-    @Unique
-    private SimpleDateFormat formatter = new SimpleDateFormat("dd-MM-yyyy hh:mm:ss");
-
     @Inject(method = "destroyAndAck", at = @At("HEAD"), cancellable = true)
     private void diamondchestshop_destroyAndAckMixin(BlockPos blockPos, int i, String string, CallbackInfo ci) {
         if (DiamondChestShopConfig.getInstance().shopProtectPlayerBreak) {
@@ -67,25 +59,29 @@ public class ServerPlayerGameModeMixin {
             BlockEntity be = level.getBlockEntity(blockPos);
             if (be != null) {
                 if (be instanceof BaseContainerBlockEntity) {
-                    if (!((BaseContainerBlockEntityInterface) be).diamondchestshop_getShop()) return;
+                    if (!((BaseContainerBlockEntityInterface) be).diamondchestshop_getIsShop()) return;
                     if (!((BaseContainerBlockEntityInterface) be).diamondchestshop_getOwner().equals(player.getStringUUID())) {
                         this.player.connection.send(new ClientboundBlockUpdatePacket(level, blockPos));
                         BlockEntity blockEntity = level.getBlockEntity(blockPos);
-                        Packet<ClientGamePacketListener> updatePacket = blockEntity.getUpdatePacket();
-                        if (updatePacket != null) {
-                            this.player.connection.send(updatePacket);
+                        if (blockEntity != null) {
+                            Packet<ClientGamePacketListener> updatePacket = blockEntity.getUpdatePacket();
+                            if (updatePacket != null) {
+                                this.player.connection.send(updatePacket);
+                            }
                         }
                         ci.cancel();
                     }
                 }
                 if (be instanceof SignBlockEntity) {
-                    if (!((SignBlockEntityInterface) be).diamondchestshop_getShop()) return;
+                    if (!((SignBlockEntityInterface) be).diamondchestshop_getIsShop()) return;
                     if (!((SignBlockEntityInterface) be).diamondchestshop_getOwner().equals(player.getStringUUID())) {
                         this.player.connection.send(new ClientboundBlockUpdatePacket(level, blockPos));
                         BlockEntity blockEntity = level.getBlockEntity(blockPos);
-                        Packet<ClientGamePacketListener> updatePacket = blockEntity.getUpdatePacket();
-                        if (updatePacket != null) {
-                            this.player.connection.send(updatePacket);
+                        if (blockEntity != null) {
+                            Packet<ClientGamePacketListener> updatePacket = blockEntity.getUpdatePacket();
+                            if (updatePacket != null) {
+                                this.player.connection.send(updatePacket);
+                            }
                         }
                         ci.cancel();
                     }
@@ -96,15 +92,21 @@ public class ServerPlayerGameModeMixin {
 
     @Inject(at = @At("HEAD"), method = "useItemOn", cancellable = true)
     private void diamondchestshop_useItemMixin(ServerPlayer serverPlayer, Level level, ItemStack itemStack, InteractionHand interactionHand, BlockHitResult blockHitResult, CallbackInfoReturnable<InteractionResult> cir) {
-        BlockEntity be = level.getBlockEntity(blockHitResult.getBlockPos());
-        if (be instanceof SignBlockEntity) {
-            if (((SignBlockEntityInterface)be).diamondchestshop_getShop() && !itemStack.getItem().equals(Items.COMMAND_BLOCK)) {
-                if (((SignBlockEntity)be).getFrontText().getMessage(0,true).getString().toLowerCase().contains("sell")) {
-                    sellShop((SignBlockEntity) be, level.getBlockState(blockHitResult.getBlockPos()), blockHitResult.getBlockPos());
+        if (level.getBlockEntity(blockHitResult.getBlockPos()) instanceof SignBlockEntity sign) {
+            SignBlockEntityInterface iSign = (SignBlockEntityInterface) sign;
+            // trigger a sell/buy process if the sign belongs to a shop and the player doesn't use a command block (admin shop)
+            if (iSign.diamondchestshop_getIsShop() && !itemStack.getItem().equals(Items.COMMAND_BLOCK)) {
+                var shopType = iSign.diamondchestshop_getShopType();
+                if (shopType == SignBlockEntityInterface.ShopType.NONE) {
+                    // early return if this not a shop
+                    return;
+                } else if (shopType == SignBlockEntityInterface.ShopType.SELL) {
+                    // shop sells something
+                    sellShop(sign, level.getBlockState(blockHitResult.getBlockPos()), blockHitResult.getBlockPos());
                     cir.setReturnValue(InteractionResult.SUCCESS);
-                }
-                if (((SignBlockEntity)be).getFrontText().getMessage(0,true).getString().toLowerCase().contains("buy")) {
-                    buyShop((SignBlockEntity) be, level.getBlockState(blockHitResult.getBlockPos()), blockHitResult.getBlockPos());
+                } else {
+                    // shop buys something
+                    buyShop(sign, level.getBlockState(blockHitResult.getBlockPos()), blockHitResult.getBlockPos());
                     cir.setReturnValue(InteractionResult.SUCCESS);
                 }
             }
@@ -113,227 +115,249 @@ public class ServerPlayerGameModeMixin {
 
     @Inject(method = "incrementDestroyProgress", at = @At("HEAD"), cancellable = true)
     private void diamondchestshop_incrementDestroyProgressMixin(BlockState blockState, BlockPos blockPos, int j, CallbackInfoReturnable<Float> cir) {
-        if (j + 1 == gameTicks) {
-            BlockEntity be = level.getBlockEntity(blockPos);
-            if (be instanceof SignBlockEntity) {
-                if (((SignBlockEntityInterface)be).diamondchestshop_getShop()) {
-                    if (!((SignBlockEntityInterface) be).diamondchestshop_getOwner().equals(player.getStringUUID()) || ((SignBlockEntityInterface) be).diamondchestshop_getAdminShop()) {
-                        BlockState state = level.getBlockState(blockPos);
-                        if (((SignBlockEntity)be).getFrontText().getMessage(0,true).getString().toLowerCase().contains("buy")) {
-                            buyShop((SignBlockEntity) be, state, blockPos);
-                            cir.setReturnValue(0.0F);
-                        }
-                        if (((SignBlockEntity)be).getFrontText().getMessage(0,true).getString().toLowerCase().contains("sell")) {
-                            sellShop((SignBlockEntity) be, state, blockPos);
-                            cir.setReturnValue(0.0F);
-                        }
-                    }
+        if (j + 1 != gameTicks) return;
+        // is this a shop sign ?
+        if (level.getBlockEntity(blockPos) instanceof SignBlockEntityInterface iSign && iSign.diamondchestshop_getIsShop()) {
+            // this an admin shop or not the players own shop
+            if (iSign.diamondchestshop_getOwner().equals(player.getStringUUID()) || iSign.diamondchestshop_getIsAdminShop()) {
+                BlockState state = level.getBlockState(blockPos);
+                var shopType = iSign.diamondchestshop_getShopType();
+                if (shopType == SignBlockEntityInterface.ShopType.BUY) {
+                    buyShop((SignBlockEntity) iSign, state, blockPos);
+                    cir.setReturnValue(0.0F);
+                }
+                if (shopType == SignBlockEntityInterface.ShopType.SELL) {
+                    sellShop((SignBlockEntity) iSign, state, blockPos);
+                    cir.setReturnValue(0.0F);
                 }
             }
         }
     }
 
-    private void sellShop(SignBlockEntity be, BlockState state, BlockPos blockPos) {
-        try {
-            int quantity = Integer.parseInt(DiamondChestShop.signTextToReadable(be.getFrontText().getMessage(1, true).getString()));
-            int quantity1 = quantity;
-            int money = Integer.parseInt(DiamondChestShop.signTextToReadable(be.getFrontText().getMessage(2, true).getString()));
-            DatabaseManager dm = DiamondUtils.getDatabaseManager();
-            BlockPos hangingPos = blockPos.offset(state.getValue(HorizontalDirectionalBlock.FACING).getOpposite().getStepX(), state.getValue(HorizontalDirectionalBlock.FACING).getOpposite().getStepY(), state.getValue(HorizontalDirectionalBlock.FACING).getOpposite().getStepZ());
-            RandomizableContainerBlockEntity shop = (RandomizableContainerBlockEntity) level.getBlockEntity(hangingPos);
-            assert shop != null;
-            String owner = ((BaseContainerBlockEntityInterface) shop).diamondchestshop_getOwner();
-            Item sellItem = BuiltInRegistries.ITEM.get(ResourceLocation.tryParse(((BaseContainerBlockEntityInterface) shop).diamondchestshop_getItem()));
+    @Unique
+    private void sellShop(SignBlockEntity sign, BlockState state, BlockPos blockPos) {
+        SignBlockEntityInterface iSign = (SignBlockEntityInterface) sign;
+        // get container block of shop
+        Direction oppSignDir = state.getValue(HorizontalDirectionalBlock.FACING).getOpposite();
+        BlockPos hangingPos = blockPos.offset(oppSignDir.getStepX(), oppSignDir.getStepY(),  oppSignDir.getStepZ());
+        BaseContainerBlockEntityInterface shop;
+        // exit if this sign is not attached to a valid shop block
+        if (level.getBlockEntity(hangingPos) instanceof RandomizableContainerBlockEntity containerBe)
+            shop = (BaseContainerBlockEntityInterface) containerBe;
+        else return;
+        if (!shop.diamondchestshop_getIsShop()) return;
+        // gather shop data
+        int shopQuantity = iSign.diamondchestshop_getQuantity();
+        int shopPrice = iSign.diamondchestshop_getPrice();
+        String owner = iSign.diamondchestshop_getOwner();
+        Item sellItem = BuiltInRegistries.ITEM.get(ResourceLocation.tryParse(iSign.diamondchestshop_getItem()));
 
-            if (dm.getBalanceFromUUID(player.getStringUUID()) < money) {
-                player.displayClientMessage(Component.literal("You don't have enough money"), true);
-                return;
-            }
-            if (dm.getBalanceFromUUID(owner) + money >= Integer.MAX_VALUE && !((SignBlockEntityInterface) be).diamondchestshop_getAdminShop()) {
-                player.displayClientMessage(Component.literal("The owner is too rich"), true);
-                return;
-            }
+        // gather balances from the database
+        DatabaseManager dm = DiamondUtils.getDatabaseManager();
+        int playerBalance = dm.getBalanceFromUUID(player.getStringUUID());
+        int shopBalance = dm.getBalanceFromUUID(owner);
+        // check if balance is sufficient/ready to receive fund
+        if (playerBalance < shopPrice) {
+            player.displayClientMessage(Component.literal("You don't have enough money"), true);
+            return;
+        }
+        if (Integer.MAX_VALUE - shopBalance < shopPrice && !iSign.diamondchestshop_getIsAdminShop()) {
+            player.displayClientMessage(Component.literal("The owner is too rich"), true);
+            return;
+        }
 
-            //check shop has item in proper quantity
-            if (!((SignBlockEntityInterface) be).diamondchestshop_getAdminShop()) {
-                Block shopBlock = level.getBlockState(hangingPos).getBlock();
-                Container inventory;
-                if (shop instanceof ChestBlockEntity && shopBlock instanceof ChestBlock) {
-                    inventory = ChestBlock.getContainer((ChestBlock) shopBlock, level.getBlockState(hangingPos), level, hangingPos, true);
-                } else {
-                    inventory = shop;
-                }
-
-                int itemCount = 0;
-                for (int i = 0; i < inventory.getContainerSize(); i++) {
-                    if (inventory.getItem(i).getItem().equals(sellItem) && (!inventory.getItem(i).hasTag() || inventory.getItem(i).getTag().getAsString().equals(((BaseContainerBlockEntityInterface) shop).diamondchestshop_getNbt()))) {
-                        itemCount += inventory.getItem(i).getCount();
-                    }
-                }
-                if (itemCount < quantity) {
-                    player.displayClientMessage(Component.literal("The shop is sold out"), true);
-                    return;
-                }
-
-                //take items from chest
-                itemCount = quantity;
-                for (int i = 0; i < inventory.getContainerSize(); i++) {
-                    if (inventory.getItem(i).getItem().equals(sellItem) && (!inventory.getItem(i).hasTag() || inventory.getItem(i).getTag().getAsString().equals(((BaseContainerBlockEntityInterface) shop).diamondchestshop_getNbt()))) {
-                        itemCount -= inventory.getItem(i).getCount();
-                        inventory.setItem(i, new ItemStack(Items.AIR));
-                        if (itemCount < 0) {
-                            ItemStack stack = new ItemStack(sellItem, Math.abs(itemCount));
-                            stack.setTag(DiamondChestShop.getNbtData(((BaseContainerBlockEntityInterface) shop).diamondchestshop_getNbt()));
-                            inventory.setItem(i, stack);
-                            break;
-                        }
-                    }
-                }
-            }
-
-            //give the player the items
-            while (quantity > sellItem.getMaxStackSize()) {
-                ItemStack stack = new ItemStack(sellItem, sellItem.getMaxStackSize());
-                stack.setTag(DiamondChestShop.getNbtData(((BaseContainerBlockEntityInterface) shop).diamondchestshop_getNbt()));
-                ItemEntity itemEntity = player.drop(stack, false);
-                assert itemEntity != null;
-                itemEntity.setNoPickUpDelay();
-                quantity -= sellItem.getMaxStackSize();
-            }
-
-            ItemStack stack2 = new ItemStack(sellItem, quantity);
-            if (!((BaseContainerBlockEntityInterface) shop).diamondchestshop_getNbt().equals("{}")) {
-                stack2.setTag(DiamondChestShop.getNbtData(((BaseContainerBlockEntityInterface) shop).diamondchestshop_getNbt()));
-            }
-            ItemEntity itemEntity2 = player.drop(stack2, true);
-            assert itemEntity2 != null;
-            itemEntity2.setNoPickUpDelay();
-
-            dm.setBalance(player.getStringUUID(), dm.getBalanceFromUUID(player.getStringUUID()) - money);
-            if (!((SignBlockEntityInterface) be).diamondchestshop_getAdminShop()) {
-                dm.setBalance(owner, dm.getBalanceFromUUID(owner) + money);
-            }
-
-            DiamondChestShop.getDatabaseManager().logTrade(
-                    ((BaseContainerBlockEntityInterface) shop).diamondchestshop_getId(),
-                    quantity1,
-                    money,
-                    player.getStringUUID(),
-                    ((SignBlockEntityInterface) be).diamondchestshop_getAdminShop() ? "admin" : owner,
-                    "sell"
-            );
-            player.displayClientMessage(Component.literal("Bought " + quantity1 + " " + sellItem.getDescription().getString() + " for $" + money), true);
-        } catch (NumberFormatException | CommandSyntaxException | NullPointerException ignored) {}
-    }
-
-    private void buyShop(SignBlockEntity be, BlockState state, BlockPos blockPos) {
-        try {
-            int quantity = Integer.parseInt(DiamondChestShop.signTextToReadable(be.getFrontText().getMessage(1, true).getString()));
-            int money = Integer.parseInt(DiamondChestShop.signTextToReadable(be.getFrontText().getMessage(2, true).getString()));
-            DatabaseManager dm = DiamondUtils.getDatabaseManager();
-            BlockPos hangingPos = blockPos.offset(state.getValue(HorizontalDirectionalBlock.FACING).getOpposite().getStepX(), state.getValue(HorizontalDirectionalBlock.FACING).getOpposite().getStepY(), state.getValue(HorizontalDirectionalBlock.FACING).getOpposite().getStepZ());
-            RandomizableContainerBlockEntity shop = (RandomizableContainerBlockEntity) level.getBlockEntity(hangingPos);
-            assert shop != null;
-            String owner = ((BaseContainerBlockEntityInterface) shop).diamondchestshop_getOwner();
-            Item buyItem = BuiltInRegistries.ITEM.get(ResourceLocation.tryParse(((BaseContainerBlockEntityInterface) shop).diamondchestshop_getItem()));
-
-            if (dm.getBalanceFromUUID(owner) < money && !((SignBlockEntityInterface) be).diamondchestshop_getAdminShop()) {
-                player.displayClientMessage(Component.literal("The owner hasn't got enough money"), true);
-                return;
-            }
-
-            if (dm.getBalanceFromUUID(player.getStringUUID()) + money >= Integer.MAX_VALUE) {
-                player.displayClientMessage(Component.literal("You are too rich"), true);
-                return;
-            }
-
-            //check player has item in proper quantity
-            int itemCount = 0;
-            for (int i = 0; i < player.getInventory().getContainerSize(); i++) {
-                if (player.getInventory().getItem(i).getItem().equals(buyItem) && (!player.getInventory().getItem(i).hasTag() || player.getInventory().getItem(i).getTag().getAsString().equals(((BaseContainerBlockEntityInterface) shop).diamondchestshop_getNbt()))) {
-                    itemCount += player.getInventory().getItem(i).getCount();
-                }
-            }
-            if (itemCount < quantity) {
-                player.displayClientMessage(Component.literal("You don't have enough of that item"), true);
-                return;
-            }
-            int emptySpaces = 0;
+        // remove items from container (only if not admin shop)
+        if (!iSign.diamondchestshop_getIsAdminShop()) {
             Block shopBlock = level.getBlockState(hangingPos).getBlock();
+            // get inventory of the shop block
             Container inventory;
             if (shop instanceof ChestBlockEntity && shopBlock instanceof ChestBlock) {
-                inventory = ChestBlock.getContainer((ChestBlock) shopBlock, level.getBlockState(hangingPos), level, hangingPos, true);
+                Container container = ChestBlock.getContainer((ChestBlock) shopBlock, level.getBlockState(hangingPos), level, hangingPos, true);
+                if (container != null) {
+                    inventory = container;
+                } else {
+                    DiamondChestShop.LOGGER.error("Shop sign seems to be attached to a block that is not a container, but a shop was created.");
+                    return;
+                }
             } else {
-                inventory = shop;
+                inventory = (Container) shop;
             }
+
+            // first if check shop has item in proper quantity
+            // calculate how many items the shop has to offer
+            // TODO: use inventory.countItem()
+            int itemCount = 0;
+            int firstItemIndex = -1;
             for (int i = 0; i < inventory.getContainerSize(); i++) {
-                if (inventory.getItem(i).getItem().equals(Items.AIR)) {
-                    emptySpaces += buyItem.getMaxStackSize();
-                    continue;
-                }
-                if (inventory.getItem(i).getItem().equals(buyItem)) {
-                    emptySpaces += buyItem.getMaxStackSize() - inventory.getItem(i).getCount();
+                ItemStack item = inventory.getItem(i);
+                if (item.getItem().equals(sellItem) && (!item.hasTag() || item.getTag().getAsString().equals(iSign.diamondchestshop_getNbt()))) {
+                    itemCount += item.getCount();
+                    if (firstItemIndex == -1) firstItemIndex = i;
+                    if (itemCount >= shopQuantity) break;
                 }
             }
-            if (emptySpaces < quantity) {
-                player.displayClientMessage(Component.literal("The chest is full"), true);
+            if (itemCount < shopQuantity) {
+                player.displayClientMessage(Component.literal("The shop is sold out"), true);
                 return;
             }
 
-            //take items from player
-            itemCount = quantity;
-            for (int i = 0; i < player.getInventory().getContainerSize(); i++) {
-                if (player.getInventory().getItem(i).getItem().equals(buyItem) && (!player.getInventory().getItem(i).hasTag() || player.getInventory().getItem(i).getTag().getAsString().equals(((BaseContainerBlockEntityInterface) shop).diamondchestshop_getNbt()))) {
-                    itemCount -= player.getInventory().getItem(i).getCount();
-                    player.getInventory().setItem(i, new ItemStack(Items.AIR));
-                    if (itemCount < 0) {
-                        ItemStack stack = new ItemStack(buyItem, Math.abs(itemCount));
-                        stack.setTag(DiamondChestShop.getNbtData(((BaseContainerBlockEntityInterface) shop).diamondchestshop_getNbt()));
-                        player.getInventory().setItem(i, stack);
-                        break;
-                    }
+            // take items from chest
+            itemCount = shopQuantity;
+            for (int i = firstItemIndex; i < inventory.getContainerSize(); i++) {
+                ItemStack item = inventory.getItem(i);
+                if (item.getItem().equals(sellItem) && (!item.hasTag() || item.getTag().getAsString().equals(iSign.diamondchestshop_getNbt()))) {
+                    int takeAmount = Math.min(item.getCount(), itemCount);
+                    itemCount -= takeAmount;
+                    inventory.removeItem(i, takeAmount);
+                    if (itemCount == 0) break;
                 }
             }
+        }
 
-            //give the chest the items
-            if (!((SignBlockEntityInterface) be).diamondchestshop_getAdminShop()) {
-                int itemsToAdd = quantity;
-                for (int i = 0; i < inventory.getContainerSize(); i++) {
-                    if (inventory.getItem(i).getItem().equals(buyItem) && (!inventory.getItem(i).hasTag() || inventory.getItem(i).getTag().getAsString().equals(((BaseContainerBlockEntityInterface) shop).diamondchestshop_getNbt()))) {
-                        itemsToAdd += inventory.getItem(i).getCount();
-                        itemsToAdd -= buyItem.getMaxStackSize();
-                        ItemStack stack = new ItemStack(buyItem, buyItem.getMaxStackSize());
-                        stack.setTag(DiamondChestShop.getNbtData(((BaseContainerBlockEntityInterface) shop).diamondchestshop_getNbt()));
-                        inventory.setItem(i, stack);
-                    }
-                    if (inventory.getItem(i).getItem().equals(Items.AIR)) {
-                        itemsToAdd -= buyItem.getMaxStackSize();
-                        ItemStack stack = new ItemStack(buyItem, buyItem.getMaxStackSize());
-                        stack.setTag(DiamondChestShop.getNbtData(((BaseContainerBlockEntityInterface) shop).diamondchestshop_getNbt()));
-                        inventory.setItem(i, stack);
-                    }
-                    if (itemsToAdd < 0) {
-                        ItemStack stack = new ItemStack(buyItem, buyItem.getMaxStackSize() + itemsToAdd);
-                        stack.setTag(DiamondChestShop.getNbtData(((BaseContainerBlockEntityInterface) shop).diamondchestshop_getNbt()));
-                        inventory.setItem(i, stack);
-                        break;
-                    }
-                }
+        // give the player the items
+        int itemCount = shopQuantity;
+        while (itemCount > 0) {
+            int itemOut = Math.min(itemCount, sellItem.getMaxStackSize());
+            ItemStack stack = new ItemStack(sellItem, itemOut);
+            if (!iSign.diamondchestshop_getNbt().equals("{}")) {
+                var tag = DiamondChestShopUtil.getNbtData(iSign.diamondchestshop_getNbt());
+                if (tag != null) stack.setTag(tag);
             }
+            player.getInventory().placeItemBackInInventory(stack);
+            itemCount -= itemOut;
+        }
 
-            if (!((SignBlockEntityInterface) be).diamondchestshop_getAdminShop()) {
-                dm.setBalance(owner, dm.getBalanceFromUUID(owner) - money);
+        // alter balance account
+        dm.setBalance(player.getStringUUID(), playerBalance - shopPrice);
+        if (!iSign.diamondchestshop_getIsAdminShop()) {
+            // only give owner money if it is not an admin shop
+            dm.setBalance(owner, dm.getBalanceFromUUID(owner) + shopPrice);
+        }
+        DiamondChestShop.getDatabaseManager().logTrade(
+                iSign.diamondchestshop_getId(),
+                shopQuantity,
+                shopPrice,
+                player.getStringUUID(),
+                iSign.diamondchestshop_getIsAdminShop() ? "admin" : owner,
+                "sell"
+        );
+        player.displayClientMessage(Component.literal("Bought " + shopQuantity + " " + sellItem.getDescription().getString() + " for $" + shopPrice), true);
+    }
+
+    @Unique
+    private void buyShop(SignBlockEntity sign, BlockState state, BlockPos blockPos) {
+        SignBlockEntityInterface iSign = (SignBlockEntityInterface) sign;
+        // get container block of shop
+        Direction oppSignDir = state.getValue(HorizontalDirectionalBlock.FACING).getOpposite();
+        BlockPos hangingPos = blockPos.offset(oppSignDir.getStepX(), oppSignDir.getStepY(),  oppSignDir.getStepZ());
+        BaseContainerBlockEntityInterface shop;
+        // exit if this sign is not attached to a valid shop block
+        if (level.getBlockEntity(hangingPos) instanceof RandomizableContainerBlockEntity containerBe)
+            shop = (BaseContainerBlockEntityInterface) containerBe;
+        else return;
+        if (!shop.diamondchestshop_getIsShop()) return;
+        // gather shop data
+        int shopQuantity = iSign.diamondchestshop_getQuantity();
+        int shopPrice = iSign.diamondchestshop_getPrice();
+        String owner = iSign.diamondchestshop_getOwner();
+        Item buyItem = BuiltInRegistries.ITEM.get(ResourceLocation.tryParse(iSign.diamondchestshop_getItem()));
+
+        // gather balances from the database
+        DatabaseManager dm = DiamondUtils.getDatabaseManager();
+        int playerBalance = dm.getBalanceFromUUID(player.getStringUUID());
+        int shopBalance = dm.getBalanceFromUUID(owner);
+
+        // check if shop owner has sufficient funds/player can receive fund
+        if (shopBalance < shopPrice && !iSign.diamondchestshop_getIsAdminShop()) {
+            player.displayClientMessage(Component.literal("The owner hasn't got enough money"), true);
+            return;
+        }
+        if (Integer.MAX_VALUE - playerBalance < shopPrice ) {
+            player.displayClientMessage(Component.literal("You are too rich"), true);
+            return;
+        }
+
+        // get shop block container
+        Block shopBlock = level.getBlockState(hangingPos).getBlock();
+        Container inventory;
+        if (shop instanceof ChestBlockEntity && shopBlock instanceof ChestBlock) {
+            Container container = ChestBlock.getContainer((ChestBlock) shopBlock, level.getBlockState(hangingPos), level, hangingPos, true);
+            if (container != null) {
+                inventory = container;
+            } else {
+                DiamondChestShop.LOGGER.error("Shop sign seems to be attached to a block that is not a container, but a shop was created.");
+                return;
             }
-            dm.setBalance(player.getStringUUID(), dm.getBalanceFromUUID(player.getStringUUID()) + money);
-            DiamondChestShop.getDatabaseManager().logTrade(
-                    ((BaseContainerBlockEntityInterface) shop).diamondchestshop_getId(),
-                    quantity,
-                    money,
-                    ((SignBlockEntityInterface) be).diamondchestshop_getAdminShop() ? "admin" : owner,
-                    player.getStringUUID(),
-                    "buy"
-            );
-            player.displayClientMessage(Component.literal("Sold " + quantity + " " + buyItem.getDescription().getString() + " for $" + money), true);
-        } catch (NumberFormatException | CommandSyntaxException | NullPointerException ignored) {}
+        } else {
+            inventory = (RandomizableContainerBlockEntity) shop;
+        }
+
+        // check if shop container has enough space
+        int emptySpaces = 0;
+        for (int i = 0; i < inventory.getContainerSize(); i++) {
+            ItemStack item = inventory.getItem(i);
+            if (item.getItem().equals(Items.AIR)) {
+                emptySpaces += buyItem.getMaxStackSize();
+                continue;
+            }
+            if (item.getItem().equals(buyItem)) {
+                emptySpaces += buyItem.getMaxStackSize() - item.getCount();
+            }
+        }
+        if (emptySpaces < shopQuantity) {
+            player.displayClientMessage(Component.literal("The chest is full"), true);
+            return;
+        }
+
+        // check if player has item in proper quantity
+        // TODO: use inventory.countItem()
+        int itemCount = 0;
+        for (int i = 0; i < player.getInventory().getContainerSize(); i++) {
+            ItemStack item = player.getInventory().getItem(i);
+            if (item.getItem().equals(buyItem) && (!item.hasTag() || player.getInventory().getItem(i).getTag().getAsString().equals((iSign.diamondchestshop_getNbt())))) {
+                itemCount += item.getCount();
+            }
+        }
+        if (itemCount < shopQuantity) {
+            player.displayClientMessage(Component.literal("You don't have enough of that item"), true);
+            return;
+        }
+
+        // take items from player
+        itemCount = shopQuantity;
+        for (int i = 0; i < player.getInventory().getContainerSize(); ++i) {
+            ItemStack item = player.getInventory().getItem(i);
+            if (item.getItem().equals(buyItem) && (!item.hasTag() || item.getTag().getAsString().equals(iSign.diamondchestshop_getNbt()))) {
+                int takeAmount = Math.min(item.getCount(), itemCount);
+                itemCount -= takeAmount;
+                player.getInventory().removeItem(i, takeAmount);
+                if (itemCount == 0) break;
+            }
+        }
+
+        // give the chest the items (only if not admin shop)
+        if (!iSign.diamondchestshop_getIsAdminShop()) {
+            String nbtTag = iSign.diamondchestshop_getNbt().equals("{}") ? null : iSign.diamondchestshop_getNbt();
+            int couldNotBeAdded = DiamondChestShopUtil.addToContainer(inventory, buyItem, shopQuantity, nbtTag);
+            if (couldNotBeAdded != 0) {
+                DiamondChestShop.LOGGER.error("Could not add " + couldNotBeAdded + " items to shop (" + iSign.diamondchestshop_getId() + ")");
+            }
+        }
+
+        // update balance accounts
+        if (!iSign.diamondchestshop_getIsAdminShop()) {
+            dm.setBalance(owner, shopBalance - shopPrice);
+        }
+        dm.setBalance(player.getStringUUID(), playerBalance + shopPrice);
+        DiamondChestShop.getDatabaseManager().logTrade(
+                iSign.diamondchestshop_getId(),
+                shopQuantity,
+                shopPrice,
+                iSign.diamondchestshop_getIsAdminShop() ? "admin" : owner,
+                player.getStringUUID(),
+                "buy"
+        );
+        player.displayClientMessage(Component.literal("Sold " + shopQuantity + " " + buyItem.getDescription().getString() + " for $" + shopPrice), true);
+
     }
 }

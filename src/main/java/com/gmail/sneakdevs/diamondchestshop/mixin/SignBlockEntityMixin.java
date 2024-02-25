@@ -1,70 +1,184 @@
 package com.gmail.sneakdevs.diamondchestshop.mixin;
 
+import com.gmail.sneakdevs.diamondchestshop.DiamondChestShop;
+import com.gmail.sneakdevs.diamondchestshop.DiamondChestShopNTB;
+import com.gmail.sneakdevs.diamondchestshop.DiamondChestShopUtil;
+import com.gmail.sneakdevs.diamondchestshop.ShopDisplayManager;
+import com.gmail.sneakdevs.diamondchestshop.config.DiamondChestShopConfig;
+import com.gmail.sneakdevs.diamondchestshop.interfaces.BaseContainerBlockEntityInterface;
 import com.gmail.sneakdevs.diamondchestshop.interfaces.SignBlockEntityInterface;
+import eu.pb4.polymer.virtualentity.api.attachment.HolderAttachment;
+import net.minecraft.core.BlockPos;
+import net.minecraft.core.Vec3i;
 import net.minecraft.nbt.CompoundTag;
-import net.minecraft.world.level.block.entity.SignBlockEntity;
+import net.minecraft.server.level.ServerLevel;
+import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.level.block.ChestBlock;
+import net.minecraft.world.level.block.DoubleBlockCombiner;
+import net.minecraft.world.level.block.HorizontalDirectionalBlock;
+import net.minecraft.world.level.block.entity.*;
+import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.phys.Vec3;
 import org.spongepowered.asm.mixin.Mixin;
+import org.spongepowered.asm.mixin.Shadow;
+import org.spongepowered.asm.mixin.Unique;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
+import net.minecraft.core.Direction;
 
-import java.util.UUID;
+import java.util.Objects;
 
 @Mixin(SignBlockEntity.class)
-public class SignBlockEntityMixin implements SignBlockEntityInterface {
-    private String diamondchestshop_owner;
-    private UUID diamondchestshop_itemEntity;
-    private boolean diamondchestshop_isShop;
-    private boolean diamondchestshop_isAdminShop;
+public abstract class SignBlockEntityMixin extends BlockEntity implements SignBlockEntityInterface  {
 
+    @Shadow public abstract SignText getFrontText();
+    @Unique
+    private String diamondchestshop_owner;
+    @Unique
+    private int diamondchestshop_id;
+    @Unique
+    private boolean diamondchestshop_isShop;
+    @Unique
+    private boolean diamondchestshop_isAdminShop;
+    @Unique
+    private String diamondchestshop_item;
+    @Unique
+    private String diamondchestshop_nbt;
+    @Unique
+    private HolderAttachment diamondchestshop_itemDisplay;
+
+    public SignBlockEntityMixin(BlockEntityType<?> blockEntityType, BlockPos blockPos, BlockState blockState) {
+        super(blockEntityType, blockPos, blockState);
+    }
+    public void diamondchestshop_setShop(int id, String owner, String item, String nbt, boolean adminShop) {
+        this.diamondchestshop_isShop = true;
+        this.diamondchestshop_isAdminShop = adminShop;
+        this.diamondchestshop_id = id;
+        this.diamondchestshop_nbt = nbt;
+        this.diamondchestshop_item = item;
+        this.diamondchestshop_owner = owner;
+        diamondchestshop_createItemDisplay();
+    }
+    public void diamondchestshop_removeShop() {
+        this.diamondchestshop_isShop = false;
+        this.diamondchestshop_isAdminShop = false;
+        this.diamondchestshop_id = -1;
+        String emptyString = "";
+        this.diamondchestshop_nbt = emptyString;
+        this.diamondchestshop_item = emptyString;
+        this.diamondchestshop_owner = emptyString;
+        if (this.diamondchestshop_itemDisplay != null)
+            this.diamondchestshop_itemDisplay.destroy();
+    }
+    public void diamondchestshop_setNbt(String newNbt) {
+        this.diamondchestshop_nbt = newNbt;
+    }
+    public void diamondchestshop_setIsAdminShop(boolean newAdminShop) {
+        this.diamondchestshop_isAdminShop = newAdminShop;
+    }
     public void diamondchestshop_setOwner(String newOwner) {
         this.diamondchestshop_owner = newOwner;
     }
-
-    public void diamondchestshop_setItemEntity(UUID newEntity) {
-        this.diamondchestshop_itemEntity = newEntity;
-    }
-
-    public void diamondchestshop_setShop(boolean newShop) {
-        this.diamondchestshop_isShop = newShop;
-    }
-
-    public void diamondchestshop_setAdminShop(boolean newAdminShop) {
-        this.diamondchestshop_isAdminShop = newAdminShop;
-    }
-
-    public boolean diamondchestshop_getAdminShop() {
+    public boolean diamondchestshop_getIsAdminShop() {
         return this.diamondchestshop_isAdminShop;
     }
-
-    public boolean diamondchestshop_getShop() {
+    public boolean diamondchestshop_getIsShop() {
         return this.diamondchestshop_isShop;
     }
-
     public String diamondchestshop_getOwner() {
         return this.diamondchestshop_owner;
     }
+    public String diamondchestshop_getItem() {
+        return this.diamondchestshop_item;
+    }
+    public String diamondchestshop_getNbt() {
+        return this.diamondchestshop_nbt;
+    }
+    public int diamondchestshop_getId() {
+        return this.diamondchestshop_id;
+    }
+    public int diamondchestshop_getPrice() {
+        try {
+            String line3 = DiamondChestShopUtil.signTextToReadable(this.getFrontText().getMessage(2, true).getString());
+            return Integer.parseInt(line3.replaceAll("[^0-9]", ""));
+        } catch (NumberFormatException ignored) {
+            return -1;
+        }
+    }
+    public int diamondchestshop_getQuantity() {
+        try {
+            String line2 = DiamondChestShopUtil.signTextToReadable(this.getFrontText().getMessage(1,true).getString());
+            return Integer.parseInt(line2.replaceAll("[^0-9]", ""));
+        } catch (NumberFormatException ignored) {
+            return -1;
+        }
+    }
 
-    public UUID diamondchestshop_getItemEntity() {
-        return this.diamondchestshop_itemEntity;
+    public ShopType diamondchestshop_getShopType() {
+        String line1 = this.getFrontText().getMessage(0,true).getString().toLowerCase();
+        if (line1.contains(DiamondChestShopConfig.getInstance().buyKeyword))
+            return ShopType.BUY;
+        if (line1.contains(DiamondChestShopConfig.getInstance().sellKeyword))
+            return ShopType.SELL;
+        return ShopType.NONE;
     }
 
     @Inject(method = "saveAdditional", at = @At("TAIL"))
     private void diamondchestshop_saveAdditionalMixin(CompoundTag nbt, CallbackInfo ci) {
-        if (this.diamondchestshop_owner == null) diamondchestshop_owner = "";
-        if (this.diamondchestshop_isShop) nbt.putUUID("diamondchestshop_ItemEntity", diamondchestshop_itemEntity);
-        nbt.putString("diamondchestshop_ShopOwner", diamondchestshop_owner);
-        if (!nbt.contains("diamondchestshop_IsShop"))
-            nbt.putBoolean("diamondchestshop_IsShop", diamondchestshop_isShop);
-        if (!nbt.contains("diamondchestshop_IsAdminShop"))
-            nbt.putBoolean("diamondchestshop_IsAdminShop", diamondchestshop_isAdminShop);
+        DiamondChestShop.LOGGER.info("saved sign entity");
+        // save if this is a shop sign
+        nbt.putBoolean(DiamondChestShopNTB.IS_SHOP, this.diamondchestshop_isShop);
+        // for shop signs save the data
+        if (this.diamondchestshop_isShop) {
+            if (this.diamondchestshop_owner == null) diamondchestshop_owner = "";
+            nbt.putString(DiamondChestShopNTB.OWNER, diamondchestshop_owner);
+            nbt.putBoolean(DiamondChestShopNTB.IS_ADMIN_SHOP, diamondchestshop_isAdminShop);
+            nbt.putInt(DiamondChestShopNTB.ID, diamondchestshop_id);
+            nbt.putString(DiamondChestShopNTB.ITEM, diamondchestshop_item);
+            if (!Objects.equals(diamondchestshop_nbt, ""))
+                nbt.putString(DiamondChestShopNTB.NTB, diamondchestshop_nbt);
+        }
+        // else {} TODO: if this isn't a shop, should this remove the nbt tags
     }
 
     @Inject(method = "load", at = @At("TAIL"))
     private void diamondchestshop_loadMixin(CompoundTag nbt, CallbackInfo ci) {
-        this.diamondchestshop_owner = nbt.getString("diamondchestshop_ShopOwner");
-        this.diamondchestshop_isShop = nbt.getBoolean("diamondchestshop_IsShop");
-        this.diamondchestshop_isAdminShop = nbt.getBoolean("diamondchestshop_IsAdminShop");
-        if (this.diamondchestshop_isShop) this.diamondchestshop_itemEntity = nbt.getUUID("diamondchestshop_ItemEntity");
+        DiamondChestShop.LOGGER.info("loaded sign entity");
+        this.diamondchestshop_isShop = nbt.getBoolean(DiamondChestShopNTB.IS_SHOP);
+        // if this should be shop, load data
+        if (this.diamondchestshop_isShop) {
+            this.diamondchestshop_owner = nbt.getString(DiamondChestShopNTB.OWNER);
+            this.diamondchestshop_isAdminShop = nbt.getBoolean(DiamondChestShopNTB.IS_ADMIN_SHOP);
+            this.diamondchestshop_id = nbt.getInt(DiamondChestShopNTB.ID);
+            if (this.diamondchestshop_id == 0) this.diamondchestshop_id = -1;
+            this.diamondchestshop_item = nbt.getString(DiamondChestShopNTB.ITEM);
+            this.diamondchestshop_nbt = nbt.getString(DiamondChestShopNTB.NTB);
+            // queue for item display creation
+            ShopDisplayManager.registerItemDisplayCreation(this);
+        }
     }
+
+    @Unique
+    public void diamondchestshop_createItemDisplay() {
+        ServerLevel world = (ServerLevel) this.getLevel();
+        // if the world isn't loaded yes, abort
+        if (!(world instanceof ServerLevel)) return;
+        DiamondChestShop.LOGGER.info("created item display at " + this.getBlockPos().toString());
+        // destroy old display
+        if (this.diamondchestshop_itemDisplay != null)
+            this.diamondchestshop_itemDisplay.destroy();
+        // determine position of the item display
+        Direction oppositeBlockDir = this.getBlockState().getValue(HorizontalDirectionalBlock.FACING).getOpposite();
+        BlockPos hangingPos = this.getBlockPos().offset(oppositeBlockDir.getStepX(), oppositeBlockDir.getStepY(), oppositeBlockDir.getStepZ());
+        Vec3 displayPos = hangingPos.getCenter();
+        // if this is a double chest, shift position in the center of the chest
+        BlockState shopBlock = world.getBlockState(hangingPos);
+        if (shopBlock.getBlock().equals(Blocks.CHEST) && !ChestBlock.getBlockType(shopBlock).equals(DoubleBlockCombiner.BlockType.SINGLE)) {
+            Direction dir = ChestBlock.getConnectedDirection(shopBlock);
+            displayPos = displayPos.add(new Vec3(0.5 * dir.getStepX(), 0.5 * dir.getStepY(), 0.5 * dir.getStepZ()));
+        }
+        this.diamondchestshop_itemDisplay = ShopDisplayManager.attachItemDisplay(this.diamondchestshop_item, (ServerLevel) this.getLevel(), displayPos);
+    }
+
 }

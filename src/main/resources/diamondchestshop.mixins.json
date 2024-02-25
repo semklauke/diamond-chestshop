@@ -8,8 +8,6 @@
     "BlockItemMixin",
     "ExplosionMixin",
     "HopperBlockEntityMixin",
-    "ItemEntityMixin",
-    "LevelMixin",
     "PistonBaseBlockMixin",
     "ServerPlayerGameModeMixin",
     "SignBlockEntityMixin",

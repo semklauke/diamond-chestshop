@@ -23,6 +23,9 @@ public class DiamondChestShopConfig implements ConfigData {
     @Comment("Name of the command to tell the player how to make a chestshop (null to disable)")
     public String chestshopCommandName = "chestshop";
 
+    @Comment("Keyword for selling or buying shop. These go in the first line of a shop sign.")
+    public String buyKeyword = "buy";
+    public String sellKeyword = "sell";
     public static DiamondChestShopConfig getInstance() {
         return AutoConfig.getConfigHolder(DiamondChestShopConfig.class).getConfig();
     }
