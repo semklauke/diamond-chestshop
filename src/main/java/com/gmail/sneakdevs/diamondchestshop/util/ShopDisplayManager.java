@@ -1,22 +1,19 @@
-package com.gmail.sneakdevs.diamondchestshop;
+package com.gmail.sneakdevs.diamondchestshop.util;
 
+import com.gmail.sneakdevs.diamondchestshop.DiamondChestShop;
 import com.gmail.sneakdevs.diamondchestshop.interfaces.SignBlockEntityInterface;
 import eu.pb4.polymer.virtualentity.api.ElementHolder;
 import eu.pb4.polymer.virtualentity.api.attachment.ChunkAttachment;
 import eu.pb4.polymer.virtualentity.api.attachment.HolderAttachment;
 import eu.pb4.polymer.virtualentity.api.elements.ItemDisplayElement;
 import eu.pb4.polymer.virtualentity.api.elements.TextDisplayElement;
-import net.minecraft.core.BlockPos;
 import net.minecraft.core.registries.BuiltInRegistries;
-import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.item.Item;
 import  net.minecraft.world.entity.Display.BillboardConstraints;
 import net.minecraft.world.item.ItemDisplayContext;
 import net.minecraft.world.phys.Vec3;
-import org.joml.Quaternionf;
-import net.minecraft.util.Mth;
 import org.joml.Vector3f;
 
 import java.util.ArrayList;

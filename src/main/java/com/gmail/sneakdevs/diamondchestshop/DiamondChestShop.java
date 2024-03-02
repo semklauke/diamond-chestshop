@@ -1,8 +1,11 @@
 package com.gmail.sneakdevs.diamondchestshop;
 
+import com.gmail.sneakdevs.diamondchestshop.command.DiamondChestshopCommands;
+import com.gmail.sneakdevs.diamondchestshop.command.HelpCommand;
 import com.gmail.sneakdevs.diamondchestshop.config.DiamondChestShopConfig;
 import com.gmail.sneakdevs.diamondchestshop.sql.ChestshopDatabaseManager;
 import com.gmail.sneakdevs.diamondchestshop.sql.ChestshopSQLiteDatabaseManager;
+import com.gmail.sneakdevs.diamondchestshop.util.ShopDisplayManager;
 import com.gmail.sneakdevs.diamondeconomy.DiamondUtils;
 import me.shedaniel.autoconfig.AutoConfig;
 import me.shedaniel.autoconfig.serializer.JanksonConfigSerializer;
@@ -29,7 +32,7 @@ public class DiamondChestShop implements ModInitializer {
 
     @Override
     public void onInitialize() {
-        CommandRegistrationCallback.EVENT.register((dispatcher, registryAccess, environment) -> ChestshopCommand.register(dispatcher));
+        CommandRegistrationCallback.EVENT.register((dispatcher, registryAccess, environment) ->  DiamondChestshopCommands.register(dispatcher, registryAccess) );
         AutoConfig.register(DiamondChestShopConfig.class, JanksonConfigSerializer::new);
         ServerLifecycleEvents.SERVER_STARTED.register((server) -> {
             DiamondChestShop.getDatabaseManager().execute("UPDATE SQLITE_SEQUENCE SET seq=10 WHERE name='chestshop' AND seq <= 1 ;");

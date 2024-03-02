@@ -1,4 +1,4 @@
-package com.gmail.sneakdevs.diamondchestshop;
+package com.gmail.sneakdevs.diamondchestshop.util;
 
 public interface DiamondChestShopNTB {
     public static final String OWNER = "diamondchestshop_ShopOwner";

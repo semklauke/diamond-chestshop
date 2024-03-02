@@ -7,6 +7,7 @@
     "BaseContainerBlockEntityMixin",
     "BlockItemMixin",
     "ExplosionMixin",
+    "LevelMixin",
     "HopperBlockEntityMixin",
     "PistonBaseBlockMixin",
     "ServerPlayerGameModeMixin",

@@ -1,6 +1,6 @@
 package com.gmail.sneakdevs.diamondchestshop.mixin;
 
-import com.gmail.sneakdevs.diamondchestshop.DiamondChestShopNTB;
+import com.gmail.sneakdevs.diamondchestshop.util.DiamondChestShopNTB;
 import com.gmail.sneakdevs.diamondchestshop.config.DiamondChestShopConfig;
 import com.gmail.sneakdevs.diamondchestshop.interfaces.BaseContainerBlockEntityInterface;
 import net.minecraft.nbt.CompoundTag;

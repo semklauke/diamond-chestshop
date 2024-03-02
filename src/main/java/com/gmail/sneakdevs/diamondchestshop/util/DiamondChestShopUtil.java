@@ -1,5 +1,6 @@
-package com.gmail.sneakdevs.diamondchestshop;
+package com.gmail.sneakdevs.diamondchestshop.util;
 
+import com.gmail.sneakdevs.diamondchestshop.DiamondChestShop;
 import com.gmail.sneakdevs.diamondchestshop.interfaces.BaseContainerBlockEntityInterface;
 import com.gmail.sneakdevs.diamondchestshop.interfaces.SignBlockEntityInterface;
 import com.mojang.brigadier.exceptions.CommandSyntaxException;

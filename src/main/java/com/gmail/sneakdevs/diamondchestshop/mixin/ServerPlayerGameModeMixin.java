@@ -1,7 +1,7 @@
 package com.gmail.sneakdevs.diamondchestshop.mixin;
 
 import com.gmail.sneakdevs.diamondchestshop.DiamondChestShop;
-import com.gmail.sneakdevs.diamondchestshop.DiamondChestShopUtil;
+import com.gmail.sneakdevs.diamondchestshop.util.DiamondChestShopUtil;
 import com.gmail.sneakdevs.diamondchestshop.config.DiamondChestShopConfig;
 import com.gmail.sneakdevs.diamondchestshop.interfaces.BaseContainerBlockEntityInterface;
 import com.gmail.sneakdevs.diamondchestshop.interfaces.SignBlockEntityInterface;
@@ -57,36 +57,27 @@ public class ServerPlayerGameModeMixin {
         if (DiamondChestShopConfig.getInstance().shopProtectPlayerBreak) {
             if (player.isCreative()) return;
             BlockEntity be = level.getBlockEntity(blockPos);
+            if (be == null) return;
+
+            if (be instanceof BaseContainerBlockEntityInterface shop) {
+                if (!shop.diamondchestshop_getIsShop()) return;
+                if (shop.diamondchestshop_getOwner().equals(player.getStringUUID())) return;
+            } else if (be instanceof SignBlockEntityInterface sign) {
+                if (!sign.diamondchestshop_getIsShop()) return;
+                if (sign.diamondchestshop_getOwner().equals(player.getStringUUID())) return;
+            } else return;
+
+            // cancel block destroy
+            // TODO: do we really need the ack here ? we could just inject in ServerPlayerGameMode::destoryBlock() and return false.
+            this.player.connection.send(new ClientboundBlockUpdatePacket(level, blockPos));
+            be = level.getBlockEntity(blockPos);
             if (be != null) {
-                if (be instanceof BaseContainerBlockEntity) {
-                    if (!((BaseContainerBlockEntityInterface) be).diamondchestshop_getIsShop()) return;
-                    if (!((BaseContainerBlockEntityInterface) be).diamondchestshop_getOwner().equals(player.getStringUUID())) {
-                        this.player.connection.send(new ClientboundBlockUpdatePacket(level, blockPos));
-                        BlockEntity blockEntity = level.getBlockEntity(blockPos);
-                        if (blockEntity != null) {
-                            Packet<ClientGamePacketListener> updatePacket = blockEntity.getUpdatePacket();
-                            if (updatePacket != null) {
-                                this.player.connection.send(updatePacket);
-                            }
-                        }
-                        ci.cancel();
-                    }
-                }
-                if (be instanceof SignBlockEntity) {
-                    if (!((SignBlockEntityInterface) be).diamondchestshop_getIsShop()) return;
-                    if (!((SignBlockEntityInterface) be).diamondchestshop_getOwner().equals(player.getStringUUID())) {
-                        this.player.connection.send(new ClientboundBlockUpdatePacket(level, blockPos));
-                        BlockEntity blockEntity = level.getBlockEntity(blockPos);
-                        if (blockEntity != null) {
-                            Packet<ClientGamePacketListener> updatePacket = blockEntity.getUpdatePacket();
-                            if (updatePacket != null) {
-                                this.player.connection.send(updatePacket);
-                            }
-                        }
-                        ci.cancel();
-                    }
+                Packet<ClientGamePacketListener> updatePacket = be.getUpdatePacket();
+                if (updatePacket != null) {
+                    this.player.connection.send(updatePacket);
                 }
             }
+            ci.cancel();
         }
     }
 

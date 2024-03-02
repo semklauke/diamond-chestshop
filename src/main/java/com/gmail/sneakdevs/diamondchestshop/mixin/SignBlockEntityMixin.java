@@ -1,15 +1,13 @@
 package com.gmail.sneakdevs.diamondchestshop.mixin;
 
 import com.gmail.sneakdevs.diamondchestshop.DiamondChestShop;
-import com.gmail.sneakdevs.diamondchestshop.DiamondChestShopNTB;
-import com.gmail.sneakdevs.diamondchestshop.DiamondChestShopUtil;
-import com.gmail.sneakdevs.diamondchestshop.ShopDisplayManager;
+import com.gmail.sneakdevs.diamondchestshop.util.DiamondChestShopNTB;
+import com.gmail.sneakdevs.diamondchestshop.util.DiamondChestShopUtil;
+import com.gmail.sneakdevs.diamondchestshop.util.ShopDisplayManager;
 import com.gmail.sneakdevs.diamondchestshop.config.DiamondChestShopConfig;
-import com.gmail.sneakdevs.diamondchestshop.interfaces.BaseContainerBlockEntityInterface;
 import com.gmail.sneakdevs.diamondchestshop.interfaces.SignBlockEntityInterface;
 import eu.pb4.polymer.virtualentity.api.attachment.HolderAttachment;
 import net.minecraft.core.BlockPos;
-import net.minecraft.core.Vec3i;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.level.block.Blocks;
