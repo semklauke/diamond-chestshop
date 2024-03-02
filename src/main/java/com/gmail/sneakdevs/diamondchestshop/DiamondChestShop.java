@@ -35,7 +35,11 @@ public class DiamondChestShop implements ModInitializer {
         CommandRegistrationCallback.EVENT.register((dispatcher, registryAccess, environment) ->  DiamondChestshopCommands.register(dispatcher, registryAccess) );
         AutoConfig.register(DiamondChestShopConfig.class, JanksonConfigSerializer::new);
         ServerLifecycleEvents.SERVER_STARTED.register((server) -> {
-            DiamondChestShop.getDatabaseManager().execute("UPDATE SQLITE_SEQUENCE SET seq=10 WHERE name='chestshop' AND seq <= 1 ;");
+            DiamondChestShop.getDatabaseManager().execute("""
+INSERT INTO sqlite_sequence (name, seq) SELECT 'chestshop', 100 
+WHERE NOT EXISTS (SELECT 1 FROM sqlite_sequence WHERE name = 'chestshop');
+UPDATE sqlite_sequence SET seq=100 WHERE name='chestshop' AND seq < 100;"""
+            );
             shopDisplayManager = new ShopDisplayManager(true);
         });
 

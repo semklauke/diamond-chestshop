@@ -110,7 +110,7 @@ public class ServerPlayerGameModeMixin {
         // is this a shop sign ?
         if (level.getBlockEntity(blockPos) instanceof SignBlockEntityInterface iSign && iSign.diamondchestshop_getIsShop()) {
             // this an admin shop or not the players own shop
-            if (iSign.diamondchestshop_getOwner().equals(player.getStringUUID()) || iSign.diamondchestshop_getIsAdminShop()) {
+            if (!iSign.diamondchestshop_getOwner().equals(player.getStringUUID()) || iSign.diamondchestshop_getIsAdminShop()) {
                 BlockState state = level.getBlockState(blockPos);
                 var shopType = iSign.diamondchestshop_getShopType();
                 if (shopType == SignBlockEntityInterface.ShopType.BUY) {

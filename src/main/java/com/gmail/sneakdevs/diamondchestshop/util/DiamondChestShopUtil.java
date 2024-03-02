@@ -72,11 +72,11 @@ public class DiamondChestShopUtil {
     }
 
     public static void diamondchestshop_destroyShop(Level world, BlockPos pos, BlockState state) {
-        DiamondChestShop.LOGGER.info("destoryShop");
         if (world.isClientSide()) return;
         var be = world.getBlockEntity(pos);
         if (be == null) return;
         if (be instanceof SignBlockEntityInterface iSign && iSign.diamondchestshop_getIsShop()) {
+            DiamondChestShop.LOGGER.info("destoryShop");
             // destroying a sign
             // get shop entity
             Direction nonFacingDir = state.getValue(HorizontalDirectionalBlock.FACING).getOpposite();
