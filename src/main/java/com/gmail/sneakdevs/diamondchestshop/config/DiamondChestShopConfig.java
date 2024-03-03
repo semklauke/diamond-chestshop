@@ -35,7 +35,7 @@ public class DiamondChestShopConfig implements ConfigData {
     public boolean useDiamondEconomyChatPrefix = true;
 
     @Comment("Prefix for messages above the hotbar (use \""+DIAMOND_ECONOMY_PREFIX+"\" if you want to use the prefix from the DiamondEconomy config )")
-    public String hotbarMessagePrefix = DIAMOND_ECONOMY_PREFIX;
+    public String hotbarMessagePrefix = "";
 
     public static DiamondChestShopConfig getInstance() {
         return AutoConfig.getConfigHolder(DiamondChestShopConfig.class).getConfig();
@@ -43,7 +43,7 @@ public class DiamondChestShopConfig implements ConfigData {
     public static MutableComponent ChatPrefix() {
         var inst = DiamondChestShopConfig.getInstance();
         if (inst.useDiamondEconomyChatPrefix) {
-            return DiamondEconomyConfig.ChatPrefix();
+            return Component.empty().append(DiamondEconomyConfig.ChatPrefix());
         } else {
             return Component.empty();
         }
@@ -52,9 +52,9 @@ public class DiamondChestShopConfig implements ConfigData {
     public static MutableComponent HotbarPrefix() {
         var inst = DiamondChestShopConfig.getInstance();
         if (inst.hotbarMessagePrefix.equals(DIAMOND_ECONOMY_PREFIX)) {
-            return DiamondEconomyConfig.ChatPrefix();
+            return Component.empty().append(DiamondEconomyConfig.ChatPrefix());
         } else {
-            return Component.literal(inst.hotbarMessagePrefix);
+            return Component.empty().append(Component.literal(inst.hotbarMessagePrefix));
         }
     }
 

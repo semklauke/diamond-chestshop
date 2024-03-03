@@ -5,12 +5,16 @@ import com.gmail.sneakdevs.diamondchestshop.util.DiamondChestShopUtil;
 import com.gmail.sneakdevs.diamondchestshop.config.DiamondChestShopConfig;
 import com.gmail.sneakdevs.diamondchestshop.interfaces.BaseContainerBlockEntityInterface;
 import com.gmail.sneakdevs.diamondchestshop.interfaces.SignBlockEntityInterface;
+import com.gmail.sneakdevs.diamondeconomy.DiamondEconomy;
 import com.gmail.sneakdevs.diamondeconomy.DiamondUtils;
+import com.gmail.sneakdevs.diamondeconomy.config.DiamondEconomyConfig;
 import com.gmail.sneakdevs.diamondeconomy.sql.DatabaseManager;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.network.chat.Component;
+import net.minecraft.network.chat.MutableComponent;
+import net.minecraft.network.chat.Style;
 import net.minecraft.network.protocol.Packet;
 import net.minecraft.network.protocol.game.ClientGamePacketListener;
 import net.minecraft.network.protocol.game.ClientboundBlockUpdatePacket;
@@ -18,6 +22,7 @@ import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.server.level.ServerPlayerGameMode;
+import net.minecraft.util.Tuple;
 import net.minecraft.world.Container;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResult;
@@ -39,6 +44,7 @@ import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
+import com.gmail.sneakdevs.diamondchestshop.interfaces.SignBlockEntityInterface.ShopType;
 
 @Mixin(value = ServerPlayerGameMode.class, priority = 999)
 public class ServerPlayerGameModeMixin {
@@ -88,10 +94,10 @@ public class ServerPlayerGameModeMixin {
             // trigger a sell/buy process if the sign belongs to a shop and the player doesn't use a command block (admin shop)
             if (iSign.diamondchestshop_getIsShop() && !itemStack.getItem().equals(Items.COMMAND_BLOCK)) {
                 var shopType = iSign.diamondchestshop_getShopType();
-                if (shopType == SignBlockEntityInterface.ShopType.NONE) {
+                if (shopType == ShopType.NONE) {
                     // early return if this not a shop
                     return;
-                } else if (shopType == SignBlockEntityInterface.ShopType.SELL) {
+                } else if (shopType == ShopType.SELL) {
                     // shop sells something
                     sellShop(sign, level.getBlockState(blockHitResult.getBlockPos()), blockHitResult.getBlockPos());
                     cir.setReturnValue(InteractionResult.SUCCESS);
@@ -113,11 +119,11 @@ public class ServerPlayerGameModeMixin {
             if (!iSign.diamondchestshop_getOwner().equals(player.getStringUUID()) || iSign.diamondchestshop_getIsAdminShop()) {
                 BlockState state = level.getBlockState(blockPos);
                 var shopType = iSign.diamondchestshop_getShopType();
-                if (shopType == SignBlockEntityInterface.ShopType.BUY) {
+                if (shopType == ShopType.BUY) {
                     buyShop((SignBlockEntity) iSign, state, blockPos);
                     cir.setReturnValue(0.0F);
                 }
-                if (shopType == SignBlockEntityInterface.ShopType.SELL) {
+                if (shopType == ShopType.SELL) {
                     sellShop((SignBlockEntity) iSign, state, blockPos);
                     cir.setReturnValue(0.0F);
                 }
@@ -130,7 +136,7 @@ public class ServerPlayerGameModeMixin {
         SignBlockEntityInterface iSign = (SignBlockEntityInterface) sign;
         // get container block of shop
         Direction oppSignDir = state.getValue(HorizontalDirectionalBlock.FACING).getOpposite();
-        BlockPos hangingPos = blockPos.offset(oppSignDir.getStepX(), oppSignDir.getStepY(),  oppSignDir.getStepZ());
+        BlockPos hangingPos = blockPos.offset(oppSignDir.getStepX(), oppSignDir.getStepY(), oppSignDir.getStepZ());
         BaseContainerBlockEntityInterface shop;
         // exit if this sign is not attached to a valid shop block
         if (level.getBlockEntity(hangingPos) instanceof RandomizableContainerBlockEntity containerBe)
@@ -149,11 +155,11 @@ public class ServerPlayerGameModeMixin {
         int shopBalance = dm.getBalanceFromUUID(owner);
         // check if balance is sufficient/ready to receive fund
         if (playerBalance < shopPrice) {
-            player.displayClientMessage(Component.literal("You don't have enough money"), true);
+            DiamondChestShopUtil.sendHotbarMessage(player, "You don't have enough money!", DiamondChestShopUtil.ERROR_STYLE);
             return;
         }
         if (Integer.MAX_VALUE - shopBalance < shopPrice && !iSign.diamondchestshop_getIsAdminShop()) {
-            player.displayClientMessage(Component.literal("The owner is too rich"), true);
+            DiamondChestShopUtil.sendHotbarMessage(player, "The owner is too rich!", DiamondChestShopUtil.ERROR_STYLE);
             return;
         }
 
@@ -188,7 +194,7 @@ public class ServerPlayerGameModeMixin {
                 }
             }
             if (itemCount < shopQuantity) {
-                player.displayClientMessage(Component.literal("The shop is sold out"), true);
+                DiamondChestShopUtil.sendHotbarMessage(player, "The shop is sold out", DiamondChestShopUtil.ERROR_STYLE);
                 return;
             }
 
@@ -224,6 +230,7 @@ public class ServerPlayerGameModeMixin {
             // only give owner money if it is not an admin shop
             dm.setBalance(owner, dm.getBalanceFromUUID(owner) + shopPrice);
         }
+        // log trade
         DiamondChestShop.getDatabaseManager().logTrade(
                 iSign.diamondchestshop_getId(),
                 shopQuantity,
@@ -232,7 +239,27 @@ public class ServerPlayerGameModeMixin {
                 iSign.diamondchestshop_getIsAdminShop() ? "admin" : owner,
                 "sell"
         );
-        player.displayClientMessage(Component.literal("Bought " + shopQuantity + " " + sellItem.getDescription().getString() + " for $" + shopPrice), true);
+        // get prev trade info (last 10 sec) to combine chat messages
+        Tuple<Integer, Integer> prevTradesInfo = DiamondChestShop.getDatabaseManager().similarTrades(
+                player.getStringUUID(),
+                iSign.diamondchestshop_getId(),
+                ShopType.SELL
+        );
+        if (prevTradesInfo != null) {
+            shopQuantity = prevTradesInfo.getA();
+            shopPrice = prevTradesInfo.getB();
+        }
+        // construct and send success message to player
+        MutableComponent successMsg =
+                Component.empty().withStyle(DiamondChestShopUtil.SUCCESS_STYLE)
+                        .append("Bought ")
+                        .append(Component.literal(shopQuantity + "x ").withStyle(Style.EMPTY.withBold(true)))
+                        .append(sellItem.getDescription().getString() + " for ")
+                        .append(DiamondChestShopConfig.currencyToLiteral(shopPrice));
+        String ownerName = DiamondUtils.getDatabaseManager().getNameFromUUID(owner);
+        if (ownerName != null)
+                successMsg.append(" from " + ownerName);
+        DiamondChestShopUtil.sendHotbarMessage(player, successMsg);
     }
 
     @Unique
@@ -260,11 +287,11 @@ public class ServerPlayerGameModeMixin {
 
         // check if shop owner has sufficient funds/player can receive fund
         if (shopBalance < shopPrice && !iSign.diamondchestshop_getIsAdminShop()) {
-            player.displayClientMessage(Component.literal("The owner hasn't got enough money"), true);
+            DiamondChestShopUtil.sendHotbarMessage(player, "The owner hasn't got enough money", DiamondChestShopUtil.ERROR_STYLE);
             return;
         }
         if (Integer.MAX_VALUE - playerBalance < shopPrice ) {
-            player.displayClientMessage(Component.literal("You are too rich"), true);
+            DiamondChestShopUtil.sendHotbarMessage(player, "You are to rich!", DiamondChestShopUtil.ERROR_STYLE);
             return;
         }
 
@@ -310,7 +337,7 @@ public class ServerPlayerGameModeMixin {
             }
         }
         if (itemCount < shopQuantity) {
-            player.displayClientMessage(Component.literal("You don't have enough of that item"), true);
+            DiamondChestShopUtil.sendHotbarMessage(player, "You don't have enough of that item", DiamondChestShopUtil.ERROR_STYLE);
             return;
         }
 
@@ -340,6 +367,7 @@ public class ServerPlayerGameModeMixin {
             dm.setBalance(owner, shopBalance - shopPrice);
         }
         dm.setBalance(player.getStringUUID(), playerBalance + shopPrice);
+        // log trade
         DiamondChestShop.getDatabaseManager().logTrade(
                 iSign.diamondchestshop_getId(),
                 shopQuantity,
@@ -348,7 +376,26 @@ public class ServerPlayerGameModeMixin {
                 player.getStringUUID(),
                 "buy"
         );
-        player.displayClientMessage(Component.literal("Sold " + shopQuantity + " " + buyItem.getDescription().getString() + " for $" + shopPrice), true);
-
+        // get prev trade info (last 10 sec) to combine chat messages
+        Tuple<Integer, Integer> prevTradesInfo = DiamondChestShop.getDatabaseManager().similarTrades(
+                player.getStringUUID(),
+                iSign.diamondchestshop_getId(),
+                ShopType.BUY
+        );
+        if (prevTradesInfo != null) {
+            shopQuantity = prevTradesInfo.getA();
+            shopPrice = prevTradesInfo.getB();
+        }
+        // construct and send success message to player
+        MutableComponent successMsg =
+                Component.empty().withStyle(DiamondChestShopUtil.SUCCESS_STYLE)
+                        .append("Sold ")
+                        .append(Component.literal(shopQuantity + "x ").withStyle(Style.EMPTY.withBold(true)))
+                        .append(buyItem.getDescription().getString() + " for ")
+                        .append(DiamondChestShopConfig.currencyToLiteral(shopPrice));
+        String ownerName = DiamondUtils.getDatabaseManager().getNameFromUUID(owner);
+        if (ownerName != null)
+                successMsg.append(" to " + ownerName);
+        DiamondChestShopUtil.sendHotbarMessage(player, successMsg);
     }
 }

@@ -1,6 +1,7 @@
 package com.gmail.sneakdevs.diamondchestshop.mixin;
 
 import com.gmail.sneakdevs.diamondchestshop.DiamondChestShop;
+import com.gmail.sneakdevs.diamondchestshop.config.DiamondChestShopConfig;
 import com.gmail.sneakdevs.diamondchestshop.util.DiamondChestShopUtil;
 import com.gmail.sneakdevs.diamondchestshop.interfaces.BaseContainerBlockEntityInterface;
 import com.gmail.sneakdevs.diamondchestshop.interfaces.SignBlockEntityInterface;
@@ -9,6 +10,8 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.network.chat.Component;
+import net.minecraft.network.chat.MutableComponent;
+import net.minecraft.network.chat.Style;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResult;
@@ -31,18 +34,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 import java.util.Objects;
 
 @Mixin(value = SignBlock.class, priority = 999)
-public abstract class SignBlockMixin extends BaseEntityBlock {
-    
-    protected SignBlockMixin(Properties properties) {
-        super(properties);
-    }
-
-    //remove shop from chest
-    @Override
-    public void playerWillDestroy(Level world, @NotNull BlockPos pos, @NotNull BlockState state, @NotNull Player player) {
-        DiamondChestShopUtil.diamondchestshop_destroyShop(world, pos, state);
-        super.playerWillDestroy(world, pos, state, player);
-    }
+public abstract class SignBlockMixin {
 
     @Inject(method = "use", at = @At("HEAD"), cancellable = true)
     private void diamondchestshop_useMixin(BlockState state, Level world, BlockPos pos, Player player, InteractionHand hand, BlockHitResult hit, CallbackInfoReturnable<InteractionResult> cir) {
@@ -59,7 +51,8 @@ public abstract class SignBlockMixin extends BaseEntityBlock {
         if (iSign.diamondchestshop_getIsShop() && handItem.equals(Items.COMMAND_BLOCK)) {
             iSign.diamondchestshop_setIsAdminShop(!iSign.diamondchestshop_getIsAdminShop());
             signEntity.setChanged();
-            player.displayClientMessage(Component.literal((iSign.diamondchestshop_getIsAdminShop()) ? "Created admin shop" : "Removed admin shop"), true);
+            String msg = iSign.diamondchestshop_getIsAdminShop() ? "Created admin shop" : "Removed admin shop";
+            DiamondChestShopUtil.sendHotbarMessage(player, msg, DiamondChestShopUtil.SUCCESS_STYLE);
             cir.setReturnValue(InteractionResult.PASS);
             return;
         }
@@ -75,7 +68,7 @@ public abstract class SignBlockMixin extends BaseEntityBlock {
         cir.setReturnValue(InteractionResult.PASS);
         // if this shop already exists, exit
         if (iSign.diamondchestshop_getIsShop()) {
-            player.displayClientMessage(Component.literal("This is already a shop"), true);
+            DiamondChestShopUtil.sendHotbarMessage(player, "This is already a shop!", DiamondChestShopUtil.ERROR_STYLE);
             return;
         }
 
@@ -85,7 +78,7 @@ public abstract class SignBlockMixin extends BaseEntityBlock {
         BlockEntity chestEntity = world.getBlockEntity(hangingPos);
         if (!(chestEntity instanceof RandomizableContainerBlockEntity shop)) {
             // sign is not attached to a container
-            player.displayClientMessage(Component.literal("Sign must be on a valid container"), true);
+            DiamondChestShopUtil.sendHotbarMessage(player, "Sign must be on a valid container!", DiamondChestShopUtil.ERROR_STYLE);
             return;
         }
 
@@ -101,20 +94,26 @@ public abstract class SignBlockMixin extends BaseEntityBlock {
 
         // offhand must have an item
         if (player.getOffhandItem().isEmpty()) {
-            player.displayClientMessage(Component.literal("Put the item you want to sell/buy in your offhand"), true);
+            DiamondChestShopUtil.sendHotbarMessage(player, "Put the item you want to sell/buy in your offhand", DiamondChestShopUtil.INFO_STYLE);
             return;
         }
 
         // don't create a shop with the same chest twice
         if (iShop.diamondchestshop_getId() != -1) {
-            player.displayClientMessage(Component.literal("That chest already is a shop"), true);
+            DiamondChestShopUtil.sendHotbarMessage(player, "That chest already is a shop!", DiamondChestShopUtil.ERROR_STYLE);
             return;
         }
 
         // Parse first line, exit if not sell or buy keyword
         if (iSign.diamondchestshop_getShopType() == SignBlockEntityInterface.ShopType.NONE) {
-            // TODO use keywords from config
-            player.displayClientMessage(Component.literal("The first line must be either \"Buy\" or \"Sell\""), true);
+            MutableComponent msg = Component.empty().withStyle(DiamondChestShopUtil.ERROR_STYLE)
+                    .append("The first line must be either ")
+                    .append(Component.literal('"' + DiamondChestShopConfig.getInstance().buyKeyword + '"')
+                            .withStyle(Style.EMPTY.withBold(true)))
+                    .append(" or ")
+                    .append(Component.literal('"' + DiamondChestShopConfig.getInstance().sellKeyword + '"')
+                            .withStyle(Style.EMPTY.withBold(true)));
+            DiamondChestShopUtil.sendHotbarMessage(player, msg);
             return;
         }
 
@@ -123,12 +122,12 @@ public abstract class SignBlockMixin extends BaseEntityBlock {
         int price = iSign.diamondchestshop_getPrice();
         // quantity must be at least 1
         if (quantity < 1) {
-            player.displayClientMessage(Component.literal("Line 2 (quantity) must be a positive number!"), true);
+            DiamondChestShopUtil.sendHotbarMessage(player, "Line 2 (quantity) must be a positive number!", DiamondChestShopUtil.ERROR_STYLE);
             return;
         }
         // money must be at least 0
         if (price < 0) {
-            player.displayClientMessage(Component.literal("Line 3 (price) must be a non negative number!"), true);
+            DiamondChestShopUtil.sendHotbarMessage(player, "Line 3 (price) must be a non negative number!", DiamondChestShopUtil.ERROR_STYLE);
             return;
         }
 
@@ -160,16 +159,17 @@ public abstract class SignBlockMixin extends BaseEntityBlock {
                 ((BaseContainerBlockEntityInterface) be2).diamondchestshop_setOwner(owner);
             }
         }
-        // oh my what a TODO
-        player.displayClientMessage(
-                Component.literal("Created shop with " + quantity + " " +
-                        Component.translatable(player.getOffhandItem().getItem().getDescriptionId()).getString() +
-                        (signEntity.getFrontText().getMessage(0,true).getString().toLowerCase().contains("sell") ?
-                                (((signEntity.getFrontText().getMessage(0,true).getString().toLowerCase().contains("buy")) ?
-                                        " sold and bought" :
-                                        " sold"))
-                                : " bought") +
-                        " for $" + price),
-                true);
+
+        // send success message
+        MutableComponent msg = DiamondChestShopConfig.ChatPrefix().withStyle(DiamondChestShopUtil.SUCCESS_STYLE)
+                .append("Created shop #" + shopId + " that ")
+                .append(Component.literal(iSign.diamondchestshop_getShopType() == SignBlockEntityInterface.ShopType.SELL ? "sells " : "buys ")
+                        .withStyle(Style.EMPTY.withBold(true)))
+                .append(quantity + "x ")
+                .append(Component.translatable(player.getOffhandItem().getItem().getDescriptionId()).getString())
+                .append(" for ")
+                .append(DiamondChestShopConfig.currencyToLiteral(price));
+
+        player.displayClientMessage(msg, false);
     }
 }

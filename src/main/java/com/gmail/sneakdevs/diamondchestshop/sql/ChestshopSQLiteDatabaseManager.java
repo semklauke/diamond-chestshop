@@ -1,9 +1,11 @@
 package com.gmail.sneakdevs.diamondchestshop.sql;
 
 import com.gmail.sneakdevs.diamondchestshop.DiamondChestShop;
+import com.gmail.sneakdevs.diamondchestshop.interfaces.SignBlockEntityInterface;
 import com.gmail.sneakdevs.diamondeconomy.sql.SQLiteDatabaseManager;
 import net.minecraft.core.Vec3i;
 import net.minecraft.resources.ResourceLocation;
+import net.minecraft.util.Tuple;
 import net.minecraft.world.item.Item;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.world.phys.Vec3;
@@ -118,6 +120,30 @@ public class ChestshopSQLiteDatabaseManager implements ChestshopDatabaseManager 
             e.printStackTrace();
         }
         return null;
+    }
+
+    public Tuple<Integer, Integer> similarTrades(String player, int shopId, SignBlockEntityInterface.ShopType type) {
+        String sql = """
+            SELECT amount, price, buyer, seller FROM (SELECT SUM(amount) as amount, SUM(price) as price, seller, buyer 
+            FROM chestshop_trades WHERE "timestamp" >= Datetime('now', '-9 seconds')
+            AND shopId = ? GROUP BY """;
+        if (type == SignBlockEntityInterface.ShopType.SELL) sql += " buyer ) WHERE buyer = ?;";
+        else sql += " seller ) WHERE seller = ?;";
+
+        try (Connection conn = this.connect(); PreparedStatement stmt = conn.prepareStatement(sql)) {
+            stmt.setInt(1, shopId);
+            stmt.setString(2, player);
+            ResultSet rs = stmt.executeQuery();
+            if (rs.next()) {
+                int sum_amount = rs.getInt("amount");
+                int sum_price = rs.getInt("price");
+                return new Tuple<>(sum_amount, sum_price);
+            }
+        } catch (SQLException | NumberFormatException e) {
+            e.printStackTrace();
+        }
+        return null;
+
     }
 
     public void logTrade(int shopId, int amount, int price, String buyer, String seller, String type) {

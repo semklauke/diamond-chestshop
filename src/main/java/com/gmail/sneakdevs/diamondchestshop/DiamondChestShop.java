@@ -1,7 +1,6 @@
 package com.gmail.sneakdevs.diamondchestshop;
 
 import com.gmail.sneakdevs.diamondchestshop.command.DiamondChestshopCommands;
-import com.gmail.sneakdevs.diamondchestshop.command.HelpCommand;
 import com.gmail.sneakdevs.diamondchestshop.config.DiamondChestShopConfig;
 import com.gmail.sneakdevs.diamondchestshop.sql.ChestshopDatabaseManager;
 import com.gmail.sneakdevs.diamondchestshop.sql.ChestshopSQLiteDatabaseManager;
@@ -35,11 +34,9 @@ public class DiamondChestShop implements ModInitializer {
         CommandRegistrationCallback.EVENT.register((dispatcher, registryAccess, environment) ->  DiamondChestshopCommands.register(dispatcher, registryAccess) );
         AutoConfig.register(DiamondChestShopConfig.class, JanksonConfigSerializer::new);
         ServerLifecycleEvents.SERVER_STARTED.register((server) -> {
-            DiamondChestShop.getDatabaseManager().execute("""
-INSERT INTO sqlite_sequence (name, seq) SELECT 'chestshop', 100 
-WHERE NOT EXISTS (SELECT 1 FROM sqlite_sequence WHERE name = 'chestshop');
-UPDATE sqlite_sequence SET seq=100 WHERE name='chestshop' AND seq < 100;"""
-            );
+            ChestshopDatabaseManager csdm = DiamondChestShop.getDatabaseManager();
+            csdm.execute("INSERT INTO sqlite_sequence (name, seq) SELECT 'chestshop', 100 WHERE NOT EXISTS (SELECT 1 FROM sqlite_sequence WHERE name = 'chestshop'");
+            csdm.execute("UPDATE sqlite_sequence SET seq=100 WHERE name='chestshop' AND seq < 100");
             shopDisplayManager = new ShopDisplayManager(true);
         });
 
@@ -49,6 +46,7 @@ UPDATE sqlite_sequence SET seq=100 WHERE name='chestshop' AND seq < 100;"""
                 item text NOT NULL,
                 nbt text NOT NULL,
                 location text DEFAULT NULL,
+                owner text DEFAULT NULL,
                 valid integer DEFAULT 1 NOT NULL,
                 CHECK (valid IN (0,1))
             );

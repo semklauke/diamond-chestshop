@@ -124,7 +124,6 @@ public abstract class SignBlockEntityMixin extends BlockEntity implements SignBl
 
     @Inject(method = "saveAdditional", at = @At("TAIL"))
     private void diamondchestshop_saveAdditionalMixin(CompoundTag nbt, CallbackInfo ci) {
-        DiamondChestShop.LOGGER.info("saved sign entity");
         // save if this is a shop sign
         nbt.putBoolean(DiamondChestShopNTB.IS_SHOP, this.diamondchestshop_isShop);
         // for shop signs save the data
@@ -162,7 +161,6 @@ public abstract class SignBlockEntityMixin extends BlockEntity implements SignBl
         ServerLevel world = (ServerLevel) this.getLevel();
         // if the world isn't loaded yes, abort
         if (!(world instanceof ServerLevel)) return;
-        DiamondChestShop.LOGGER.info("created item display at " + this.getBlockPos().toString());
         // destroy old display
         if (this.diamondchestshop_itemDisplay != null)
             this.diamondchestshop_itemDisplay.destroy();

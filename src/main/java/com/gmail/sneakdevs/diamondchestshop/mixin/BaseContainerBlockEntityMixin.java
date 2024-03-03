@@ -1,12 +1,24 @@
 package com.gmail.sneakdevs.diamondchestshop.mixin;
 
+import com.gmail.sneakdevs.diamondchestshop.DiamondChestShop;
+import com.gmail.sneakdevs.diamondchestshop.interfaces.SignBlockEntityInterface;
 import com.gmail.sneakdevs.diamondchestshop.util.DiamondChestShopNTB;
 import com.gmail.sneakdevs.diamondchestshop.config.DiamondChestShopConfig;
 import com.gmail.sneakdevs.diamondchestshop.interfaces.BaseContainerBlockEntityInterface;
+import com.gmail.sneakdevs.diamondchestshop.util.DiamondChestShopUtil;
+import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.chat.Component;
 import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.level.Level;
+import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.level.block.ChestBlock;
+import net.minecraft.world.level.block.DoubleBlockCombiner;
 import net.minecraft.world.level.block.entity.BaseContainerBlockEntity;
+import net.minecraft.world.level.block.entity.BlockEntity;
+import net.minecraft.world.level.block.entity.BlockEntityType;
+import net.minecraft.world.level.block.state.BlockState;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Unique;
 import org.spongepowered.asm.mixin.injection.At;
@@ -14,12 +26,18 @@ import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
+import java.util.Objects;
+
 @Mixin(BaseContainerBlockEntity.class)
-public abstract class BaseContainerBlockEntityMixin implements BaseContainerBlockEntityInterface {
+public abstract class BaseContainerBlockEntityMixin extends BlockEntity implements BaseContainerBlockEntityInterface {
     @Unique
     private String diamondchestshop_owner = null;
     @Unique
     private int diamondchestshop_id = -1;
+
+    public BaseContainerBlockEntityMixin(BlockEntityType<?> blockEntityType, BlockPos blockPos, BlockState blockState) {
+        super(blockEntityType, blockPos, blockState);
+    }
 
     public void diamondchestshop_setOwner(String newOwner) {
         this.diamondchestshop_owner = newOwner;
@@ -30,6 +48,10 @@ public abstract class BaseContainerBlockEntityMixin implements BaseContainerBloc
     public void diamondchestshop_removeShop() {
         this.diamondchestshop_owner = null;
         this.diamondchestshop_id = -1;
+        SignBlockEntityInterface sign = this.diamondchestshop_findShopSign();
+        if (sign != null) {
+            sign.diamondchestshop_removeShop();
+        }
     }
     public int diamondchestshop_getId() {
         return this.diamondchestshop_id;
@@ -59,19 +81,6 @@ public abstract class BaseContainerBlockEntityMixin implements BaseContainerBloc
             this.diamondchestshop_id = id;
             this.diamondchestshop_owner = nbt.getString(DiamondChestShopNTB.OWNER);
         }
-//        diamondchestshop_isShop = nbt.getBoolean("diamondchestshop_IsShop");
-//        diamondchestshop_owner = nbt.getString("diamondchestshop_ShopOwner");
-//        if (nbt.getString("diamondchestshop_NBT").length() > 1) {
-//            diamondchestshop_item = nbt.getString("diamondchestshop_ShopItem");
-//            diamondchestshop_nbt = nbt.getString("diamondchestshop_NBT");
-//            diamondchestshop_id = DiamondChestShop.getDatabaseManager().addShop(diamondchestshop_item, diamondchestshop_nbt, this.getBlockPos().getCenter());
-//        } else {
-//            if (nbt.getInt("diamondchestshop_Id") > 0) {
-//                diamondchestshop_id = nbt.getInt("diamondchestshop_Id");
-//                diamondchestshop_item = DiamondChestShop.getDatabaseManager().getItem(diamondchestshop_id);
-//                diamondchestshop_nbt = DiamondChestShop.getDatabaseManager().getNbt(diamondchestshop_id);
-//            }
-//        }
     }
 
     @Inject(method = "canOpen", at = @At("RETURN"), cancellable = true)
@@ -84,9 +93,40 @@ public abstract class BaseContainerBlockEntityMixin implements BaseContainerBloc
                     cir.setReturnValue(true);
                     return;
                 }
-                player.displayClientMessage(Component.literal("Cannot open another player's shop"), true);
+                DiamondChestShopUtil.sendHotbarMessage(player, "Cannot open another player's shop!", DiamondChestShopUtil.ERROR_STYLE);
                 cir.setReturnValue(false);
             }
         }
     }
+
+    @Unique
+    private SignBlockEntityInterface diamondchestshop_findShopSign() {
+        Level world = this.getLevel();
+        if (world == null) return null;
+        // see if a sign is attached to this block
+        SignBlockEntityInterface sign = diamondchestshop_findShopSign(world, this.getBlockPos());
+        if (sign != null) return sign;
+        // there was no sign around this block -> check if this is a double chest
+        BlockEntity dc = DiamondChestShopUtil.getDoubleChest(world, this.getBlockPos());
+        if (dc != null) {
+            // see if a sing is attached to the double chest block
+            return diamondchestshop_findShopSign(world, dc.getBlockPos());
+        }
+        // could not find sign
+        return null;
+    }
+
+    @Unique
+    private SignBlockEntityInterface diamondchestshop_findShopSign(Level world, BlockPos chestPos) {
+        // look around this block to check for SignBlockEntityInterface that belongs to a shop
+        for (BlockPos pos : BlockPos.withinManhattan(chestPos, 1, 0, 1)) {
+            if (world.getBlockEntity(pos) instanceof SignBlockEntityInterface sign) {
+                if (sign.diamondchestshop_getIsShop()) {
+                    return sign;
+                }
+            }
+        }
+        return null;
+    }
+
 }

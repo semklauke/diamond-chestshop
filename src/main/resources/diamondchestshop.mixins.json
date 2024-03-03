@@ -11,7 +11,8 @@
     "PistonBaseBlockMixin",
     "ServerPlayerGameModeMixin",
     "SignBlockEntityMixin",
-    "SignBlockMixin"
+    "SignBlockMixin",
+    "BaseEntityBlockMixin"
   ],
   "injectors": {
     "defaultRequire": 1
