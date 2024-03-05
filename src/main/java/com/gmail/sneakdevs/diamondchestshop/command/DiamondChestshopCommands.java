@@ -26,6 +26,8 @@ public class DiamondChestshopCommands {
         }
 
         registerFunc.accept(HelpCommand.buildCommand());
+        registerFunc.accept(ListCommand.buildCommand());
+        registerFunc.accept(CloseCommand.buildCommand());
 
     }
 }

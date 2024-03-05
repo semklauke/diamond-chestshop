@@ -35,7 +35,7 @@ public class DiamondChestShop implements ModInitializer {
         AutoConfig.register(DiamondChestShopConfig.class, JanksonConfigSerializer::new);
         ServerLifecycleEvents.SERVER_STARTED.register((server) -> {
             ChestshopDatabaseManager csdm = DiamondChestShop.getDatabaseManager();
-            csdm.execute("INSERT INTO sqlite_sequence (name, seq) SELECT 'chestshop', 100 WHERE NOT EXISTS (SELECT 1 FROM sqlite_sequence WHERE name = 'chestshop'");
+            csdm.execute("INSERT INTO sqlite_sequence (name, seq) SELECT 'chestshop',100 WHERE NOT EXISTS (SELECT 1 FROM sqlite_sequence WHERE name = 'chestshop')");
             csdm.execute("UPDATE sqlite_sequence SET seq=100 WHERE name='chestshop' AND seq < 100");
             shopDisplayManager = new ShopDisplayManager(true);
         });
@@ -63,6 +63,23 @@ public class DiamondChestShop implements ModInitializer {
                 timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
                 FOREIGN KEY(shopId) REFERENCES chestshop(id)
             );
+        """);
+
+        DiamondUtils.registerTable("""
+            CREATE VIEW IF NOT EXISTS shoprecords AS 
+            SELECT
+                SUM(price) as priceSum,
+                SUM(amount) as amountSum,
+                chestshop.id as shopId,
+                item,
+                nbt,
+                owner,
+                location,
+                type,
+                valid 
+            FROM chestshop 
+            LEFT JOIN chestshop_trades ON chestshop.id = chestshop_trades.shopId
+            GROUP by chestshop.id ORDER BY chestshop.id DESC;  
         """);
     }
 }

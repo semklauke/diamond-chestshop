@@ -100,4 +100,31 @@ public class DiamondChestShopUtil {
         return null;
     }
 
+    public static void destroyShopContainer(BaseContainerBlockEntity shop, Level world, BlockPos pos) {
+        BaseContainerBlockEntityInterface iShop = (BaseContainerBlockEntityInterface) shop;
+        iShop.diamondchestshop_removeShop();
+        shop.setChanged();
+        // check if this a double chest
+        BlockEntity dc = DiamondChestShopUtil.getDoubleChest(world, pos);
+        if (dc != null) {
+            ((BaseContainerBlockEntityInterface) dc).diamondchestshop_removeShop();
+            dc.setChanged();
+        }
+    }
+
+    public static String padRight(String s, int n) {
+        if (s.length() > n) return s.substring(0, n);
+        else return String.format("%-" + n + "s", s);
+    }
+
+    public static String getRightPadding(String s, int n) {
+        if (s.length() > n) return null;
+        else return "+".repeat(n - s.length());
+    }
+
+    public static String padLeft(String s, int n) {
+        if (s.length() > n) return s.substring(0, n);
+        else return String.format("%" + n + "s", s);
+    }
+
 }

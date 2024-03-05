@@ -139,7 +139,9 @@ public abstract class SignBlockMixin {
         // start creating shop
         String itemStr = BuiltInRegistries.ITEM.getKey(player.getOffhandItem().getItem()).toString();
         String owner = player.getStringUUID();
-        int shopId = DiamondChestShop.getDatabaseManager().addShop(itemStr, nbt, hangingPos.getCenter());
+        // add shop to database
+        int shopId = DiamondChestShop.getDatabaseManager().addShop(owner, itemStr, nbt, pos.getCenter());
+        // add data to sign and container entity
         iSign.diamondchestshop_setShop(shopId, owner, itemStr, nbt, false);
         iShop.diamondchestshop_setId(shopId);
         iShop.diamondchestshop_setOwner(owner);
@@ -150,14 +152,11 @@ public abstract class SignBlockMixin {
         shop.setChanged();
 
         // if the sign is attached to a double chest, add data to other chest as well
-        BlockState shopBlock = world.getBlockState(hangingPos);
-        if (shopBlock.getBlock().equals(Blocks.CHEST) && !ChestBlock.getBlockType(shopBlock).equals(DoubleBlockCombiner.BlockType.SINGLE)) {
-            Direction dir = ChestBlock.getConnectedDirection(shopBlock);
-            BlockEntity be2 = world.getBlockEntity(new BlockPos(shop.getBlockPos().getX() + dir.getStepX(), shop.getBlockPos().getY(), shop.getBlockPos().getZ() + dir.getStepZ()));
-            if (be2 != null) {
-                ((BaseContainerBlockEntityInterface) be2).diamondchestshop_setId(shopId);
-                ((BaseContainerBlockEntityInterface) be2).diamondchestshop_setOwner(owner);
-            }
+        BlockEntity dc = DiamondChestShopUtil.getDoubleChest(world, hangingPos);
+        if (dc != null) {
+            ((BaseContainerBlockEntityInterface) dc).diamondchestshop_setId(shopId);
+            ((BaseContainerBlockEntityInterface) dc).diamondchestshop_setOwner(owner);
+
         }
 
         // send success message

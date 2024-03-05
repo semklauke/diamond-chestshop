@@ -141,7 +141,6 @@ public abstract class SignBlockEntityMixin extends BlockEntity implements SignBl
 
     @Inject(method = "load", at = @At("TAIL"))
     private void diamondchestshop_loadMixin(CompoundTag nbt, CallbackInfo ci) {
-        DiamondChestShop.LOGGER.info("loaded sign entity");
         this.diamondchestshop_isShop = nbt.getBoolean(DiamondChestShopNTB.IS_SHOP);
         // if this should be shop, load data
         if (this.diamondchestshop_isShop) {
