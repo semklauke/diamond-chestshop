@@ -3,15 +3,11 @@ package com.gmail.sneakdevs.diamondchestshop.command;
 import com.gmail.sneakdevs.diamondchestshop.config.DiamondChestShopConfig;
 import com.gmail.sneakdevs.diamondchestshop.util.DiamondChestShopUtil;
 import com.gmail.sneakdevs.diamondeconomy.config.DiamondEconomyConfig;
-import com.mojang.brigadier.CommandDispatcher;
 import com.mojang.brigadier.builder.LiteralArgumentBuilder;
 import com.mojang.brigadier.context.CommandContext;
-import com.mojang.brigadier.exceptions.CommandSyntaxException;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.commands.Commands;
 import net.minecraft.network.chat.Component;
-import net.minecraft.network.chat.Style;
-import net.minecraft.network.chat.TextColor;
 
 public class HelpCommand {
     public static LiteralArgumentBuilder<CommandSourceStack> buildCommand(){

@@ -17,36 +17,45 @@ import org.spongepowered.asm.mixin.Unique;
 
 @Mixin(value = BaseEntityBlock.class, priority = 800)
 public class BaseEntityBlockMixin extends Block {
+
     public BaseEntityBlockMixin(Properties properties) {
         super(properties);
     }
 
     @Override
-    public void playerWillDestroy(Level world, BlockPos pos, BlockState state, Player player) {
-        if (world.isClientSide()) return;
+    public BlockState playerWillDestroy(Level world, BlockPos pos, BlockState state, Player player) {
+        if (world.isClientSide()) return state;
         var be = world.getBlockEntity(pos);
-        if (be == null) return;
-        if (be instanceof SignBlockEntityInterface iSign && iSign.diamondchestshop_getIsShop()) {
-            int shopId = iSign.diamondchestshop_getId();
-            DiamondChestShop.LOGGER.debug("Destroyed shop " + shopId + " via Sign");
-            // destroying a sign
-            // get shop entity
-            Direction nonFacingDir = state.getValue(HorizontalDirectionalBlock.FACING).getOpposite();
-            BlockPos hangingPos = pos.offset(nonFacingDir.getStepX(), nonFacingDir.getStepY(), nonFacingDir.getStepZ());
-            // if sign belongs to a shop entity, remove that shop
-            if (world.getBlockEntity(hangingPos) instanceof BaseContainerBlockEntity shop && ((BaseContainerBlockEntityInterface) shop).diamondchestshop_getIsShop()) {
-                DiamondChestShopUtil.destroyShopContainer(shop, world, hangingPos);
+        switch (be) {
+            case null -> {
+                return state;
             }
-            // remove shop from database and SignEntity
-            DiamondChestShop.getDatabaseManager().removeShop(shopId);
-            iSign.diamondchestshop_removeShop();
-        } else if (be instanceof BaseContainerBlockEntity shop && ((BaseContainerBlockEntityInterface)be).diamondchestshop_getIsShop()) {
-            // destroying a container
-            int shopId = ((BaseContainerBlockEntityInterface)be).diamondchestshop_getId();
-            DiamondChestShop.LOGGER.debug("Destroyed shop " + shopId + " via Container!");
-            DiamondChestShop.getDatabaseManager().removeShop(shopId);
-            DiamondChestShopUtil.destroyShopContainer(shop, world, pos);
+            case SignBlockEntityInterface iSign when iSign.diamondchestshop_getIsShop() -> {
+                int shopId = iSign.diamondchestshop_getId();
+                DiamondChestShop.LOGGER.debug("Destroyed shop " + shopId + " via Sign");
+                // destroying a sign
+                // get shop entity
+                Direction nonFacingDir = state.getValue(HorizontalDirectionalBlock.FACING).getOpposite();
+                BlockPos hangingPos = pos.offset(nonFacingDir.getStepX(), nonFacingDir.getStepY(), nonFacingDir.getStepZ());
+                // if sign belongs to a shop entity, remove that shop
+                if (world.getBlockEntity(hangingPos) instanceof BaseContainerBlockEntity shop && ((BaseContainerBlockEntityInterface) shop).diamondchestshop_getIsShop()) {
+                    DiamondChestShopUtil.destroyShopContainer(shop, world, hangingPos);
+                }
+                // remove shop from database and SignEntity
+                DiamondChestShop.getDatabaseManager().removeShop(shopId);
+                iSign.diamondchestshop_removeShop();
+            }
+            case BaseContainerBlockEntity shop when ((BaseContainerBlockEntityInterface) be).diamondchestshop_getIsShop() -> {
+                // destroying a container
+                int shopId = ((BaseContainerBlockEntityInterface) be).diamondchestshop_getId();
+                DiamondChestShop.LOGGER.debug("Destroyed shop " + shopId + " via Container!");
+                DiamondChestShop.getDatabaseManager().removeShop(shopId);
+                DiamondChestShopUtil.destroyShopContainer(shop, world, pos);
+            }
+            default -> {
+                return super.playerWillDestroy(world, pos, state, player);
+            }
         }
-        super.playerWillDestroy(world, pos, state, player);
+        return super.playerWillDestroy(world, pos, state, player);
     }
 }

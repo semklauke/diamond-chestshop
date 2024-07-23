@@ -1,20 +1,15 @@
 package com.gmail.sneakdevs.diamondchestshop.mixin;
 
-import com.gmail.sneakdevs.diamondchestshop.DiamondChestShop;
 import com.gmail.sneakdevs.diamondchestshop.interfaces.SignBlockEntityInterface;
-import com.gmail.sneakdevs.diamondchestshop.util.DiamondChestShopNTB;
+import com.gmail.sneakdevs.diamondchestshop.util.DiamondChestShopNBT;
 import com.gmail.sneakdevs.diamondchestshop.config.DiamondChestShopConfig;
 import com.gmail.sneakdevs.diamondchestshop.interfaces.BaseContainerBlockEntityInterface;
 import com.gmail.sneakdevs.diamondchestshop.util.DiamondChestShopUtil;
 import net.minecraft.core.BlockPos;
-import net.minecraft.core.Direction;
+import net.minecraft.core.HolderLookup;
 import net.minecraft.nbt.CompoundTag;
-import net.minecraft.network.chat.Component;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.level.Level;
-import net.minecraft.world.level.block.Blocks;
-import net.minecraft.world.level.block.ChestBlock;
-import net.minecraft.world.level.block.DoubleBlockCombiner;
 import net.minecraft.world.level.block.entity.BaseContainerBlockEntity;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.entity.BlockEntityType;
@@ -25,8 +20,6 @@ import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
-
-import java.util.Objects;
 
 @Mixin(BaseContainerBlockEntity.class)
 public abstract class BaseContainerBlockEntityMixin extends BlockEntity implements BaseContainerBlockEntityInterface {
@@ -64,22 +57,22 @@ public abstract class BaseContainerBlockEntityMixin extends BlockEntity implemen
     }
 
     @Inject(method = "saveAdditional", at = @At("TAIL"))
-    private void diamondchestshop_saveAdditionalMixin(CompoundTag nbt, CallbackInfo ci) {
+    private void diamondchestshop_saveAdditionalMixin(CompoundTag nbt, HolderLookup.Provider provider, CallbackInfo ci) {
         // if this has an associated shop, save to nbt tags
         if (this.diamondchestshop_id != -1) {
-            nbt.putInt(DiamondChestShopNTB.ID, diamondchestshop_id);
+            nbt.putInt(DiamondChestShopNBT.ID, diamondchestshop_id);
             if (this.diamondchestshop_owner == null) diamondchestshop_owner = "";
-            nbt.putString(DiamondChestShopNTB.OWNER, diamondchestshop_owner);
+            nbt.putString(DiamondChestShopNBT.OWNER, diamondchestshop_owner);
         }
     }
 
-    @Inject(method = "load", at = @At("TAIL"))
-    private void diamondchestshop_loadMixin(CompoundTag nbt, CallbackInfo ci) {
-        int id = nbt.getInt(DiamondChestShopNTB.ID);
+    @Inject(method = "loadAdditional", at = @At("TAIL"))
+    private void diamondchestshop_loadMixin(CompoundTag nbt,  HolderLookup.Provider provider, CallbackInfo ci) {
+        int id = nbt.getInt(DiamondChestShopNBT.ID);
         // if there was a shop stored, load the nbt tags
         if (id > 0) {
             this.diamondchestshop_id = id;
-            this.diamondchestshop_owner = nbt.getString(DiamondChestShopNTB.OWNER);
+            this.diamondchestshop_owner = nbt.getString(DiamondChestShopNBT.OWNER);
         }
     }
 

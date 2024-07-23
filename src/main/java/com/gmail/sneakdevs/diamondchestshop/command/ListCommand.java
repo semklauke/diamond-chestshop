@@ -5,7 +5,6 @@ import com.gmail.sneakdevs.diamondchestshop.config.DiamondChestShopConfig;
 import com.gmail.sneakdevs.diamondchestshop.interfaces.SignBlockEntityInterface.ShopType;
 import com.gmail.sneakdevs.diamondchestshop.sql.ChestshopDatabaseManager;
 import com.gmail.sneakdevs.diamondchestshop.sql.ShopRecord;
-import com.gmail.sneakdevs.diamondchestshop.util.DiamondChestShopUtil;
 import com.gmail.sneakdevs.diamondeconomy.DiamondUtils;
 import com.gmail.sneakdevs.diamondeconomy.command.CommandExceptions;
 import com.mojang.brigadier.arguments.StringArgumentType;

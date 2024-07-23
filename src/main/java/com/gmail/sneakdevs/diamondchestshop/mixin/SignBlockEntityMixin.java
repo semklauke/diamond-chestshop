@@ -1,13 +1,13 @@
 package com.gmail.sneakdevs.diamondchestshop.mixin;
 
-import com.gmail.sneakdevs.diamondchestshop.DiamondChestShop;
-import com.gmail.sneakdevs.diamondchestshop.util.DiamondChestShopNTB;
+import com.gmail.sneakdevs.diamondchestshop.util.DiamondChestShopNBT;
 import com.gmail.sneakdevs.diamondchestshop.util.DiamondChestShopUtil;
 import com.gmail.sneakdevs.diamondchestshop.util.ShopDisplayManager;
 import com.gmail.sneakdevs.diamondchestshop.config.DiamondChestShopConfig;
 import com.gmail.sneakdevs.diamondchestshop.interfaces.SignBlockEntityInterface;
 import eu.pb4.polymer.virtualentity.api.attachment.HolderAttachment;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.HolderLookup;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.level.block.Blocks;
@@ -123,33 +123,33 @@ public abstract class SignBlockEntityMixin extends BlockEntity implements SignBl
     }
 
     @Inject(method = "saveAdditional", at = @At("TAIL"))
-    private void diamondchestshop_saveAdditionalMixin(CompoundTag nbt, CallbackInfo ci) {
+    private void diamondchestshop_saveAdditionalMixin(CompoundTag nbt, HolderLookup.Provider provider, CallbackInfo ci) {
         // save if this is a shop sign
-        nbt.putBoolean(DiamondChestShopNTB.IS_SHOP, this.diamondchestshop_isShop);
+        nbt.putBoolean(DiamondChestShopNBT.IS_SHOP, this.diamondchestshop_isShop);
         // for shop signs save the data
         if (this.diamondchestshop_isShop) {
             if (this.diamondchestshop_owner == null) diamondchestshop_owner = "";
-            nbt.putString(DiamondChestShopNTB.OWNER, diamondchestshop_owner);
-            nbt.putBoolean(DiamondChestShopNTB.IS_ADMIN_SHOP, diamondchestshop_isAdminShop);
-            nbt.putInt(DiamondChestShopNTB.ID, diamondchestshop_id);
-            nbt.putString(DiamondChestShopNTB.ITEM, diamondchestshop_item);
+            nbt.putString(DiamondChestShopNBT.OWNER, diamondchestshop_owner);
+            nbt.putBoolean(DiamondChestShopNBT.IS_ADMIN_SHOP, diamondchestshop_isAdminShop);
+            nbt.putInt(DiamondChestShopNBT.ID, diamondchestshop_id);
+            nbt.putString(DiamondChestShopNBT.ITEM, diamondchestshop_item);
             if (!Objects.equals(diamondchestshop_nbt, ""))
-                nbt.putString(DiamondChestShopNTB.NTB, diamondchestshop_nbt);
+                nbt.putString(DiamondChestShopNBT.NTB, diamondchestshop_nbt);
         }
         // else {} TODO: if this isn't a shop, should this remove the nbt tags
     }
 
-    @Inject(method = "load", at = @At("TAIL"))
-    private void diamondchestshop_loadMixin(CompoundTag nbt, CallbackInfo ci) {
-        this.diamondchestshop_isShop = nbt.getBoolean(DiamondChestShopNTB.IS_SHOP);
+    @Inject(method = "loadAdditional", at = @At("TAIL"))
+    private void diamondchestshop_loadMixin(CompoundTag nbt, HolderLookup.Provider provider, CallbackInfo ci) {
+        this.diamondchestshop_isShop = nbt.getBoolean(DiamondChestShopNBT.IS_SHOP);
         // if this should be shop, load data
         if (this.diamondchestshop_isShop) {
-            this.diamondchestshop_owner = nbt.getString(DiamondChestShopNTB.OWNER);
-            this.diamondchestshop_isAdminShop = nbt.getBoolean(DiamondChestShopNTB.IS_ADMIN_SHOP);
-            this.diamondchestshop_id = nbt.getInt(DiamondChestShopNTB.ID);
+            this.diamondchestshop_owner = nbt.getString(DiamondChestShopNBT.OWNER);
+            this.diamondchestshop_isAdminShop = nbt.getBoolean(DiamondChestShopNBT.IS_ADMIN_SHOP);
+            this.diamondchestshop_id = nbt.getInt(DiamondChestShopNBT.ID);
             if (this.diamondchestshop_id == 0) this.diamondchestshop_id = -1;
-            this.diamondchestshop_item = nbt.getString(DiamondChestShopNTB.ITEM);
-            this.diamondchestshop_nbt = nbt.getString(DiamondChestShopNTB.NTB);
+            this.diamondchestshop_item = nbt.getString(DiamondChestShopNBT.ITEM);
+            this.diamondchestshop_nbt = nbt.getString(DiamondChestShopNBT.NTB);
             // queue for item display creation
             ShopDisplayManager.registerItemDisplayCreation(this);
         }

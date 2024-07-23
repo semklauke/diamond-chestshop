@@ -11,7 +11,10 @@ import com.gmail.sneakdevs.diamondeconomy.config.DiamondEconomyConfig;
 import com.gmail.sneakdevs.diamondeconomy.sql.DatabaseManager;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
+import net.minecraft.core.component.DataComponentType;
+import net.minecraft.core.component.DataComponents;
 import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.MutableComponent;
 import net.minecraft.network.chat.Style;
@@ -26,6 +29,7 @@ import net.minecraft.util.Tuple;
 import net.minecraft.world.Container;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResult;
+import net.minecraft.world.ItemInteractionResult;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
@@ -45,6 +49,8 @@ import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 import com.gmail.sneakdevs.diamondchestshop.interfaces.SignBlockEntityInterface.ShopType;
+
+import java.util.ArrayList;
 
 @Mixin(value = ServerPlayerGameMode.class, priority = 999)
 public class ServerPlayerGameModeMixin {
@@ -163,6 +169,9 @@ public class ServerPlayerGameModeMixin {
             return;
         }
 
+        // Save items that will be added to the player inv here
+        ArrayList<ItemStack> addToPlayerInv = new ArrayList<ItemStack>();
+
         // remove items from container (only if not admin shop)
         if (!iSign.diamondchestshop_getIsAdminShop()) {
             Block shopBlock = level.getBlockState(hangingPos).getBlock();
@@ -180,48 +189,36 @@ public class ServerPlayerGameModeMixin {
                 inventory = (Container) shop;
             }
 
-            // first if check shop has item in proper quantity
-            // calculate how many items the shop has to offer
-            // TODO: use inventory.countItem()
-            int itemCount = 0;
-            int firstItemIndex = -1;
-            for (int i = 0; i < inventory.getContainerSize(); i++) {
-                ItemStack item = inventory.getItem(i);
-                if (item.getItem().equals(sellItem) && (!item.hasTag() || item.getTag().getAsString().equals(iSign.diamondchestshop_getNbt()))) {
-                    itemCount += item.getCount();
-                    if (firstItemIndex == -1) firstItemIndex = i;
-                    if (itemCount >= shopQuantity) break;
-                }
-            }
-            if (itemCount < shopQuantity) {
+            // first check if shop has item in proper quantity
+            if (inventory.countItem(sellItem) < shopQuantity) {
                 DiamondChestShopUtil.sendHotbarMessage(player, "The shop is sold out", DiamondChestShopUtil.ERROR_STYLE);
                 return;
             }
-
             // take items from chest
-            itemCount = shopQuantity;
-            for (int i = firstItemIndex; i < inventory.getContainerSize(); i++) {
+            int itemCount = shopQuantity;
+            for (int i = 0; i < inventory.getContainerSize(); i++) {
                 ItemStack item = inventory.getItem(i);
-                if (item.getItem().equals(sellItem) && (!item.hasTag() || item.getTag().getAsString().equals(iSign.diamondchestshop_getNbt()))) {
+                if (item.getItem().equals(sellItem)) {
                     int takeAmount = Math.min(item.getCount(), itemCount);
+                    addToPlayerInv.add(item.copyWithCount(takeAmount)); // add to player inv later
+                    inventory.removeItem(i, takeAmount); // remove from container
                     itemCount -= takeAmount;
-                    inventory.removeItem(i, takeAmount);
-                    if (itemCount == 0) break;
+                    if (itemCount <= 0) break;
                 }
+            }
+        } else {
+            // admin shop - create item from thin air
+            int itemCount = shopQuantity;
+            while (itemCount >= 0) {
+                int takeAmount = Math.min(itemCount, sellItem.getDefaultMaxStackSize());
+                addToPlayerInv.add(new ItemStack(sellItem, takeAmount));
+                itemCount -= takeAmount;
             }
         }
 
         // give the player the items
-        int itemCount = shopQuantity;
-        while (itemCount > 0) {
-            int itemOut = Math.min(itemCount, sellItem.getMaxStackSize());
-            ItemStack stack = new ItemStack(sellItem, itemOut);
-            if (!iSign.diamondchestshop_getNbt().equals("{}")) {
-                var tag = DiamondChestShopUtil.getNbtData(iSign.diamondchestshop_getNbt());
-                if (tag != null) stack.setTag(tag);
-            }
+        for (ItemStack stack : addToPlayerInv) {
             player.getInventory().placeItemBackInInventory(stack);
-            itemCount -= itemOut;
         }
 
         // alter balance account
@@ -315,11 +312,11 @@ public class ServerPlayerGameModeMixin {
         for (int i = 0; i < inventory.getContainerSize(); i++) {
             ItemStack item = inventory.getItem(i);
             if (item.getItem().equals(Items.AIR)) {
-                emptySpaces += buyItem.getMaxStackSize();
+                emptySpaces += buyItem.getDefaultMaxStackSize();
                 continue;
             }
             if (item.getItem().equals(buyItem)) {
-                emptySpaces += buyItem.getMaxStackSize() - item.getCount();
+                emptySpaces += buyItem.getDefaultMaxStackSize() - item.getCount();
             }
         }
         if (emptySpaces < shopQuantity) {
@@ -328,37 +325,35 @@ public class ServerPlayerGameModeMixin {
         }
 
         // check if player has item in proper quantity
-        // TODO: use inventory.countItem()
-        int itemCount = 0;
-        for (int i = 0; i < player.getInventory().getContainerSize(); i++) {
-            ItemStack item = player.getInventory().getItem(i);
-            if (item.getItem().equals(buyItem) && (!item.hasTag() || player.getInventory().getItem(i).getTag().getAsString().equals((iSign.diamondchestshop_getNbt())))) {
-                itemCount += item.getCount();
-            }
-        }
-        if (itemCount < shopQuantity) {
+        if (player.getInventory().countItem(buyItem) < shopQuantity) {
             DiamondChestShopUtil.sendHotbarMessage(player, "You don't have enough of that item", DiamondChestShopUtil.ERROR_STYLE);
             return;
         }
 
         // take items from player
-        itemCount = shopQuantity;
+        ArrayList<ItemStack> addToShop = new ArrayList<ItemStack>();
+        int itemCount = shopQuantity;
         for (int i = 0; i < player.getInventory().getContainerSize(); ++i) {
             ItemStack item = player.getInventory().getItem(i);
-            if (item.getItem().equals(buyItem) && (!item.hasTag() || item.getTag().getAsString().equals(iSign.diamondchestshop_getNbt()))) {
+            if (item.getItem().equals(buyItem)) {
                 int takeAmount = Math.min(item.getCount(), itemCount);
-                itemCount -= takeAmount;
+                addToShop.add(item.copyWithCount(takeAmount));
                 player.getInventory().removeItem(i, takeAmount);
-                if (itemCount == 0) break;
+                itemCount -= takeAmount;
+                if (itemCount <= 0) break;
             }
         }
 
+
         // give the chest the items (only if not admin shop)
         if (!iSign.diamondchestshop_getIsAdminShop()) {
-            String nbtTag = iSign.diamondchestshop_getNbt().equals("{}") ? null : iSign.diamondchestshop_getNbt();
-            int couldNotBeAdded = DiamondChestShopUtil.addToContainer(inventory, buyItem, shopQuantity, nbtTag);
-            if (couldNotBeAdded != 0) {
-                DiamondChestShop.LOGGER.error("Could not add " + couldNotBeAdded + " items to shop (" + iSign.diamondchestshop_getId() + ")");
+            for (ItemStack shopStack : addToShop) {
+                DiamondChestShop.LOGGER.info(addToShop.toString());
+                if (DiamondChestShopUtil.addToContainer(inventory, shopStack) != 0) {
+                    // could not add the whole stack
+                    DiamondChestShop.LOGGER.error("Could not add {} items to shop ({})", shopStack.getCount(), iSign.diamondchestshop_getId());
+                    //player.getInventory().placeItemBackInInventory(shopStack); // give the remaining stack back to the player
+                }
             }
         }
 

@@ -8,6 +8,7 @@ import com.gmail.sneakdevs.diamondchestshop.interfaces.SignBlockEntityInterface;
 import com.gmail.sneakdevs.diamondeconomy.config.DiamondEconomyConfig;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
+import net.minecraft.core.component.DataComponents;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.MutableComponent;
@@ -15,8 +16,10 @@ import net.minecraft.network.chat.Style;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResult;
+import net.minecraft.world.ItemInteractionResult;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.Item;
+import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.*;
@@ -36,13 +39,13 @@ import java.util.Objects;
 @Mixin(value = SignBlock.class, priority = 999)
 public abstract class SignBlockMixin {
 
-    @Inject(method = "use", at = @At("HEAD"), cancellable = true)
-    private void diamondchestshop_useMixin(BlockState state, Level world, BlockPos pos, Player player, InteractionHand hand, BlockHitResult hit, CallbackInfoReturnable<InteractionResult> cir) {
+    @Inject(method = "useItemOn", at = @At("HEAD"), cancellable = true)
+    private void diamondchestshop_useMixin(ItemStack itemStack, BlockState state, Level world, BlockPos pos, Player player, InteractionHand hand, BlockHitResult hit, CallbackInfoReturnable<ItemInteractionResult> cir) {
         // only server side
         if (world.isClientSide()) return;
 
         // get Item and Sign entity
-        Item handItem = player.getItemInHand(hand).getItem();
+        Item handItem = itemStack.getItem();
         SignBlockEntity signEntity = (SignBlockEntity) world.getBlockEntity(pos);
         if (signEntity == null) return;
         SignBlockEntityInterface iSign = (SignBlockEntityInterface) signEntity;
@@ -53,7 +56,7 @@ public abstract class SignBlockMixin {
             signEntity.setChanged();
             String msg = iSign.diamondchestshop_getIsAdminShop() ? "Created admin shop" : "Removed admin shop";
             DiamondChestShopUtil.sendHotbarMessage(player, msg, DiamondChestShopUtil.SUCCESS_STYLE);
-            cir.setReturnValue(InteractionResult.PASS);
+            cir.setReturnValue(ItemInteractionResult.SUCCESS);
             return;
         }
 
@@ -64,8 +67,8 @@ public abstract class SignBlockMixin {
 
         /* From here on this is a shop interaction with the sign.
          * Hence, we always want to cancel the tail of the sign use method */
+        cir.setReturnValue(ItemInteractionResult.SKIP_DEFAULT_BLOCK_INTERACTION);
 
-        cir.setReturnValue(InteractionResult.PASS);
         // if this shop already exists, exit
         if (iSign.diamondchestshop_getIsShop()) {
             DiamondChestShopUtil.sendHotbarMessage(player, "This is already a shop!", DiamondChestShopUtil.ERROR_STYLE);
@@ -133,14 +136,22 @@ public abstract class SignBlockMixin {
 
         // save nbt tags for the item in the offhand
         String nbt;
-        try { nbt = Objects.requireNonNull(player.getOffhandItem().getTag()).getAsString(); }
+        try { nbt = player.getOffhandItem().getComponents().get(DataComponents.CUSTOM_DATA).toString(); }
         catch (NullPointerException ignore) { nbt = "{}"; }
 
         // start creating shop
         String itemStr = BuiltInRegistries.ITEM.getKey(player.getOffhandItem().getItem()).toString();
         String owner = player.getStringUUID();
+
         // add shop to database
         int shopId = DiamondChestShop.getDatabaseManager().addShop(owner, itemStr, nbt, pos.getCenter());
+        if (shopId == -1) {
+            DiamondChestShopUtil.sendHotbarMessage(player, "Could not create Shop. Please contact the admin.", DiamondChestShopUtil.ERROR_STYLE);
+            DiamondChestShop.LOGGER.error("Database error while creating shop.");
+            cir.setReturnValue(ItemInteractionResult.FAIL);
+            return;
+        }
+
         // add data to sign and container entity
         iSign.diamondchestshop_setShop(shopId, owner, itemStr, nbt, false);
         iShop.diamondchestshop_setId(shopId);

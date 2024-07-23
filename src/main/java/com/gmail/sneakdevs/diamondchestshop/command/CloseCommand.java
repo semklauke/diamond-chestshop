@@ -70,7 +70,7 @@ public class CloseCommand {
         } else {
             ctx.getSource().sendFailure(
                     Component.empty()
-                            .append("Could not find sign at " + signPos.toString())
+                            .append("Could not find sign at " + signPos)
             );
             return 0;
         }

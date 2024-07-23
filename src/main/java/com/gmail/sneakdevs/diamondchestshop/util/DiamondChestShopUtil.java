@@ -24,8 +24,11 @@ import net.minecraft.world.level.block.entity.BaseContainerBlockEntity;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.network.chat.Style;
+
+import java.util.function.Predicate;
+
 public class DiamondChestShopUtil {
-    public static Style ERROR_STYLE = Style.EMPTY.withColor(TextColor.parseColor("#D23006")).withBold(true);
+    public static Style ERROR_STYLE = Style.EMPTY.withColor(TextColor.parseColor("#D23006").getOrThrow()).withBold(true);
     public static Style SUCCESS_STYLE = Style.EMPTY;
     public static Style INFO_STYLE = Style.EMPTY;
     public static String signTextToReadable(String text) {
@@ -57,7 +60,7 @@ public class DiamondChestShopUtil {
         for (int i = 0; i < container.getContainerSize(); ++i) {
             ItemStack stack = container.getItem(i);
             if (!stack.getItem().equals(item)) continue;
-            if (nbt == null || !stack.hasTag() || stack.getTag().getAsString().equals(nbt)) {
+            if (nbt == null /*TAGS || stack.getTags() || stack.getTag().getAsString().equals(nbt)*/) {
                 int takeAmount = Math.min(stack.getCount(), count);
                 count -= takeAmount;
                 container.removeItem(i, takeAmount);
@@ -73,12 +76,12 @@ public class DiamondChestShopUtil {
             ItemStack newStack = null;
             if (stack.equals(ItemStack.EMPTY)) {
                 // empty slot
-                int itemsToAdd = Math.min(count, item.getMaxStackSize());
+                int itemsToAdd = Math.min(count, item.getDefaultMaxStackSize());
                 newStack = new ItemStack(item, itemsToAdd);
                 count -= itemsToAdd;
-            } else if (stack.getItem().equals(item) && (nbt == null || !stack.hasTag() || stack.getTag().getAsString().equals(nbt))) {
+            } else if (stack.getItem().equals(item) /*TAGS && (nbt == null || !stack.hasTag() || stack.getTag().getAsString().equals(nbt))*/) {
                 // same item is in this slot
-                int itemsToAdd = Math.min(count, item.getMaxStackSize() - stack.getCount());
+                int itemsToAdd = Math.min(count, item.getDefaultMaxStackSize() - stack.getCount());
                 newStack = new ItemStack(item, itemsToAdd + stack.getCount());
                 count -= itemsToAdd;
             }
@@ -87,6 +90,22 @@ public class DiamondChestShopUtil {
             if (count == 0) break;
         }
         return count;
+    }
+
+    public static int addToContainer(Container container, ItemStack stack) {
+        for (int i = 0; i < container.getContainerSize(); ++i) {
+            ItemStack containerStack = container.getItem(i);
+            if (containerStack.isEmpty()) {
+                // empty slot
+                container.setItem(i, stack.copyAndClear());
+            } else if (ItemStack.isSameItemSameComponents(containerStack, stack)) {
+                int itemsToAdd = Math.min(stack.getCount(), containerStack.getMaxStackSize() - containerStack.getCount());
+                containerStack.grow(itemsToAdd);
+                stack.shrink(itemsToAdd);
+                if (stack.getCount() == 0) break;
+            }
+        }
+        return stack.getCount();
     }
 
     public static BlockEntity getDoubleChest(Level world, BlockPos chestPos) {
