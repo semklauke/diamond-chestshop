@@ -29,10 +29,13 @@ public class DiamondChestShopConfig implements ConfigData {
     @Comment("Keyword for selling or buying shop. These go in the first line of a shop sign.")
     public String buyKeyword = "buy";
     public String sellKeyword = "sell";
+    @Comment("Rotate hovering items over shop chest")
+    public boolean shopDisplayRotate = true;
     @Comment("Use currency prefix/suffix from the DiamondEconomy config")
     public boolean useDiamondEconomyCurrencyConfig = true;
     @Comment("Use chat prefix from the DiamondEconomy config")
     public boolean useDiamondEconomyChatPrefix = true;
+
 
     @Comment("Prefix for messages above the hotbar (use \""+DIAMOND_ECONOMY_PREFIX+"\" if you want to use the prefix from the DiamondEconomy config )")
     public String hotbarMessagePrefix = "";
